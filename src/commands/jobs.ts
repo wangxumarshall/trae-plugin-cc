@@ -2,98 +2,168 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const PLUGIN_DIR = path.join(process.cwd(), '.claude-trae-plugin');
+const STATE_DIR = path.join(PLUGIN_DIR, 'jobs');
 
-export function getJobs() {
-    if (!fs.existsSync(PLUGIN_DIR)) {
+export interface JobState {
+    id: string;
+    pid: number | null;
+    status: 'running' | 'completed' | 'cancelled' | 'failed';
+    type: 'review' | 'run' | 'adversarial-review';
+    logFile: string;
+    createdAt: number;
+    updatedAt: number;
+    command: string;
+}
+
+export function ensureStateDir() {
+    if (!fs.existsSync(STATE_DIR)) {
+        fs.mkdirSync(STATE_DIR, { recursive: true });
+    }
+}
+
+export function saveJob(job: JobState) {
+    ensureStateDir();
+    const jobFile = path.join(STATE_DIR, `${job.id}.json`);
+    job.updatedAt = Date.now();
+    fs.writeFileSync(jobFile, JSON.stringify(job, null, 2), 'utf-8');
+}
+
+export function getJob(id: string): JobState | null {
+    const jobFile = path.join(STATE_DIR, `${id}.json`);
+    if (fs.existsSync(jobFile)) {
+        try {
+            return JSON.parse(fs.readFileSync(jobFile, 'utf-8')) as JobState;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
+export function listJobs(): JobState[] {
+    if (!fs.existsSync(STATE_DIR)) {
         return [];
     }
 
-    const files = fs.readdirSync(PLUGIN_DIR);
-    const pids = files.filter(f => f.endsWith('.pid')).map(f => f.replace('.pid', ''));
+    const files = fs.readdirSync(STATE_DIR).filter(f => f.endsWith('.json'));
+    const jobs: JobState[] = [];
 
-    return pids.map(pid => {
-        const timestamp = parseInt(pid, 10);
-        const logFile = path.join(PLUGIN_DIR, `${pid}.log`);
-        const pidFile = path.join(PLUGIN_DIR, `${pid}.pid`);
-
-        let status = '未知';
-        if (fs.existsSync(pidFile)) {
-             try {
-                const processId = fs.readFileSync(pidFile, 'utf-8').trim();
-                process.kill(parseInt(processId, 10), 0); // Check if process is running
-                status = '运行中';
-             } catch (e: any) {
-                 if (e.code === 'ESRCH') {
-                     status = '已完成或已中止';
-                 } else {
-                     status = '无法验证状态';
-                 }
-             }
-        } else {
-            status = '已完成或已中止';
+    for (const file of files) {
+        try {
+            const job = JSON.parse(fs.readFileSync(path.join(STATE_DIR, file), 'utf-8')) as JobState;
+            // Verify if running jobs are actually running
+            if (job.status === 'running' && job.pid) {
+                try {
+                    process.kill(job.pid, 0);
+                } catch (e: any) {
+                    if (e.code === 'ESRCH') {
+                        job.status = 'failed'; // Process died unexpectedly
+                        saveJob(job);
+                    }
+                }
+            }
+            jobs.push(job);
+        } catch {
+            // ignore invalid files
         }
+    }
 
-        return { id: pid, timestamp, status, logFile, pidFile };
-    });
+    return jobs.sort((a, b) => b.createdAt - a.createdAt); // newest first
 }
 
 export function status(args: string[]) {
-    const jobs = getJobs();
-    if (jobs.length === 0) {
-        console.log('当前没有运行或记录的后台任务。');
+    const id = args[0];
+
+    if (id) {
+        const job = getJob(id);
+        if (!job) {
+            console.log(`Job not found: ${id}`);
+            return;
+        }
+
+        console.log(`Job ID: ${job.id}`);
+        console.log(`Type: ${job.type}`);
+        console.log(`Status: ${job.status}`);
+        console.log(`Created: ${new Date(job.createdAt).toLocaleString()}`);
+        console.log(`Log File: ${job.logFile}`);
         return;
     }
 
-    console.log('后台任务状态:\n');
+    const jobs = listJobs();
+    if (jobs.length === 0) {
+        console.log('No recent Trae jobs.');
+        return;
+    }
+
+    console.log('Recent Trae Jobs:\n');
+    console.log('ID'.padEnd(20) + 'TYPE'.padEnd(20) + 'STATUS'.padEnd(15) + 'CREATED');
+    console.log('-'.repeat(80));
     jobs.forEach(job => {
-        const date = new Date(job.timestamp).toLocaleString();
-        console.log(`[ID: ${job.id}] (${date}) 状态: ${job.status}`);
+        const date = new Date(job.createdAt).toLocaleString();
+        console.log(`${job.id.padEnd(20)}${job.type.padEnd(20)}${job.status.padEnd(15)}${date}`);
     });
 }
 
 export function result(args: string[]) {
     const id = args[0];
     if (!id) {
-        console.log('请提供任务 ID。例如: /trae:result 1633022... \n你可以用 /trae:status 获取任务 ID。');
+        console.log('Please provide a task ID. Example: /trae:result 1633022... \nYou can use /trae:status to list tasks.');
         return;
     }
 
-    const logFile = path.join(PLUGIN_DIR, `${id}.log`);
-    if (!fs.existsSync(logFile)) {
-        console.log(`找不到 ID 为 ${id} 的日志文件。`);
+    const job = getJob(id);
+    if (!job) {
+        console.log(`Job not found: ${id}`);
         return;
     }
 
-    const content = fs.readFileSync(logFile, 'utf-8');
-    console.log(`任务 ${id} 的结果输出:\n`);
+    if (!fs.existsSync(job.logFile)) {
+        console.log(`Log file not found for job ${id}.`);
+        return;
+    }
+
+    const content = fs.readFileSync(job.logFile, 'utf-8');
+    console.log(`--- Results for Job ${id} (${job.type}) ---`);
+    console.log(`Status: ${job.status}\n`);
     console.log(content);
 }
 
 export function cancel(args: string[]) {
     const id = args[0];
     if (!id) {
-        console.log('请提供要取消的任务 ID。例如: /trae:cancel 1633022... \n你可以用 /trae:status 获取任务 ID。');
+        console.log('Please provide a task ID. Example: /trae:cancel 1633022... \nYou can use /trae:status to list tasks.');
         return;
     }
 
-    const pidFile = path.join(PLUGIN_DIR, `${id}.pid`);
-    if (!fs.existsSync(pidFile)) {
-         console.log(`找不到 ID 为 ${id} 的任务记录。它可能已经完成或被清理。`);
+    const job = getJob(id);
+    if (!job) {
+         console.log(`Job not found: ${id}`);
          return;
     }
 
-    try {
-        const pidStr = fs.readFileSync(pidFile, 'utf-8').trim();
-        const pid = parseInt(pidStr, 10);
+    if (job.status !== 'running') {
+        console.log(`Job ${id} is not running (Status: ${job.status}).`);
+        return;
+    }
 
-        process.kill(pid, 'SIGKILL'); // Force kill
-        console.log(`已发送强制终止信号给任务 ${id} (PID: ${pid})。`);
-        fs.unlinkSync(pidFile); // Remove pid file
-    } catch (e: any) {
-        if (e.code === 'ESRCH') {
-            console.log(`任务 ${id} 的进程已经不再运行。`);
-        } else {
-             console.error(`取消任务时发生错误: ${e.message}`);
+    if (job.pid) {
+        try {
+            process.kill(job.pid, 'SIGKILL');
+            console.log(`Force killed process (PID: ${job.pid}) for job ${id}.`);
+        } catch (e: any) {
+            if (e.code === 'ESRCH') {
+                console.log(`Process for job ${id} was already dead.`);
+            } else {
+                 console.error(`Error killing process: ${e.message}`);
+            }
         }
+    }
+
+    job.status = 'cancelled';
+    saveJob(job);
+
+    // Also append to log file to record cancellation
+    if (fs.existsSync(job.logFile)) {
+        fs.appendFileSync(job.logFile, '\n\n--- Job cancelled by user ---\n');
     }
 }

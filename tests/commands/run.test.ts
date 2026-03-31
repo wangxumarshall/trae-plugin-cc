@@ -7,9 +7,9 @@ describe('run command', () => {
     let consoleLogMock: jest.SpyInstance;
 
     beforeEach(() => {
-        jest.clearAllMocks();
-        consoleLogMock = jest.spyOn(console, 'log').mockImplementation();
+        consoleLogMock = jest.spyOn(console, 'log').mockImplementation(() => {});
         (utils.runTraeCli as jest.Mock).mockResolvedValue('task result');
+        (utils.runTraeCli as jest.Mock).mockClear();
     });
 
     afterEach(() => {
@@ -18,18 +18,18 @@ describe('run command', () => {
 
     it('should run task synchronously by default', async () => {
         await runTask(['do', 'something']);
-        expect(utils.runTraeCli).toHaveBeenCalledWith('do something', false);
+        expect(utils.runTraeCli).toHaveBeenCalledWith('do something', false, 'run');
         expect(consoleLogMock).toHaveBeenCalledWith('task result');
     });
 
     it('should run task in background with --background flag', async () => {
         await runTask(['--background', 'do', 'something']);
-        expect(utils.runTraeCli).toHaveBeenCalledWith('do something', true);
+        expect(utils.runTraeCli).toHaveBeenCalledWith('do something', true, 'run');
     });
 
     it('should prompt if no task description is provided', async () => {
         await runTask([]);
-        expect(consoleLogMock).toHaveBeenCalledWith('请提供要执行的任务描述，例如: /trae:run "重构用户模块"');
+        expect(consoleLogMock).toHaveBeenCalledWith('Please provide a task description, e.g., /trae:run "Refactor user module"');
         expect(utils.runTraeCli).not.toHaveBeenCalled();
     });
 });
