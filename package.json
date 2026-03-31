@@ -4,7 +4,8 @@
   "description": "在 Claude Code 中直接调用字节 Trae Agent (trae-cli) 做代码审查或任务委托",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -24,7 +25,10 @@
   },
   "homepage": "https://github.com/wangxumarshall/trae-plugin-cc#readme",
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.0.0"
   }
 }
