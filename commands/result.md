@@ -1,14 +1,14 @@
-# /trae:result
+---
+description: Fetch the results of a specific background task.
+argument-hint: '<Task ID>'
+disable-model-invocation: true
+allowed-tools: Bash(node:*)
+---
 
-**Description:**
-获取特定后台 Trae 任务的输出日志。
+Fetch task result:
 
-**Usage:**
 ```bash
-/trae:result <Task ID>
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" result $ARGUMENTS
 ```
 
-**Internal Execution:**
-```bash
-npx --yes trae-plugin-cc result <Task ID>
-```
+Return the command stdout verbatim, exactly as-is.

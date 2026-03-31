@@ -1,14 +1,14 @@
-# /trae:cancel
+---
+description: Forcibly cancel an active background Trae job.
+argument-hint: '<Task ID>'
+disable-model-invocation: true
+allowed-tools: Bash(node:*)
+---
 
-**Description:**
-强制取消特定的后台 Trae 任务。
+Cancel the task:
 
-**Usage:**
 ```bash
-/trae:cancel <Task ID>
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" cancel $ARGUMENTS
 ```
 
-**Internal Execution:**
-```bash
-npx --yes trae-plugin-cc cancel <Task ID>
-```
+Return the command stdout verbatim, exactly as-is.

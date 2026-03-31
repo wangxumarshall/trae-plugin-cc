@@ -4,7 +4,7 @@
       {
         "matcher": ".*review.*",
         "hooks": [
-          { "type": "command", "command": "trae-cli run \"审查通过后再继续执行\"" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run \"Please ensure the review has passed. Do not proceed until any critical issues raised by Trae Agent have been resolved.\"" }
         ]
       }
     ]

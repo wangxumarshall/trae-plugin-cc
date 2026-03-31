@@ -1,14 +1,14 @@
-# /trae:status
+---
+description: Shows running and recent Trae background jobs for the current repository.
+argument-hint: '[task-id]'
+disable-model-invocation: true
+allowed-tools: Bash(node:*)
+---
 
-**Description:**
-查看当前或历史的后台 Trae 任务的状态。
+Run status command to check background jobs:
 
-**Usage:**
 ```bash
-/trae:status
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" status $ARGUMENTS
 ```
 
-**Internal Execution:**
-```bash
-npx --yes trae-plugin-cc status
-```
+Return the command stdout verbatim, exactly as-is.
