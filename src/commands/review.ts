@@ -49,8 +49,10 @@ export async function review(args: string[], isAdversarial: boolean = false) {
     console.log('提交代码审查请求到 Trae Agent...');
     try {
         const result = await runTraeCli(prompt, background);
-        console.log('\n审查结果:\n');
-        console.log(result);
+        if (background) {
+            console.log('\n审查结果:\n');
+            console.log(result);
+        }
     } catch (error: any) {
         console.error('审查执行出错:', error.message);
     }

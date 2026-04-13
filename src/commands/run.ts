@@ -13,8 +13,10 @@ export async function runTask(args: string[]) {
     console.log('正将任务委托给 Trae Agent...');
     try {
         const result = await runTraeCli(prompt, background);
-        console.log('\n任务执行结果:\n');
-        console.log(result);
+        if (background) {
+            console.log('\n任务执行结果:\n');
+            console.log(result);
+        }
     } catch (error: any) {
          console.error('任务执行出错:', error.message);
     }
