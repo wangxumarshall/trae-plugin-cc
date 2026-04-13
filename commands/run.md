@@ -43,5 +43,5 @@ allowed-tools: Bash(trae-cli:*)
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" run "任务描述" [options]
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" run "任务描述" [options]
 ```

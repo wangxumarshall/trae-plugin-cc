@@ -40,5 +40,5 @@ description: 管理 Trae Agent 会话历史与上下文
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" sessions <action> [options]
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" sessions <action> [options]
 ```

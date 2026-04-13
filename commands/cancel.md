@@ -15,5 +15,5 @@ allowed-tools: Bash(kill)
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" cancel <Task ID>
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" cancel <Task ID>
 ```

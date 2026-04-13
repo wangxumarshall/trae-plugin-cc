@@ -14,5 +14,5 @@ description: 获取后台 Trae 任务输出
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" result <Task ID>
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" result <Task ID>
 ```

@@ -20,5 +20,5 @@ allowed-tools: Bash(git:*), Bash(trae-cli:*)
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" rescue [--context <text>] [--retries <n>] [--force]
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" rescue [--context <text>] [--retries <n>] [--force]
 ```

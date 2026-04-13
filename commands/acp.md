@@ -40,5 +40,5 @@ allowed-tools: Bash(trae-cli:*)
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" acp <action> [options]
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp <action> [options]
 ```

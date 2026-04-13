@@ -14,5 +14,5 @@ description: 查看后台 Trae 任务状态
 
 **Internal Execution:**
 ```bash
-node "$CLAUDE_PLUGIN_DIR/dist/index.js" status
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" status
 ```
