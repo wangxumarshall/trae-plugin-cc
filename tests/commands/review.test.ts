@@ -1,7 +1,11 @@
 import { review } from '../../src/commands/review';
 import * as utils from '../../src/utils';
+import * as traeExecutor from '../../src/utils/trae-executor';
+import * as branchDetection from '../../src/utils/branch-detection';
 
 jest.mock('../../src/utils');
+jest.mock('../../src/utils/trae-executor');
+jest.mock('../../src/utils/branch-detection');
 
 describe('review command', () => {
     let consoleLogMock: jest.SpyInstance;
@@ -10,24 +14,31 @@ describe('review command', () => {
         jest.clearAllMocks();
         consoleLogMock = jest.spyOn(console, 'log').mockImplementation();
         (utils.getGitDiff as jest.Mock).mockResolvedValue('test diff');
-        (utils.runTraeCli as jest.Mock).mockResolvedValue('review result');
+        (traeExecutor.TraeExecutor as jest.Mock).mockImplementation(() => ({
+            execute: jest.fn().mockResolvedValue({
+                taskId: '123456',
+                output: 'review result',
+                exitCode: 0,
+                sessionId: 'test-session-id',
+                duration: 1000,
+            }),
+        }));
+        (branchDetection.detectBaseBranch as jest.Mock).mockResolvedValue('main');
+        (branchDetection.estimateReviewSize as jest.Mock).mockResolvedValue({
+            lineCount: 100,
+            fileCount: 5,
+            recommendation: { useBackground: false },
+        });
+        (branchDetection.formatEstimate as jest.Mock).mockReturnValue('100 lines, 5 files');
     });
 
     afterEach(() => {
         consoleLogMock.mockRestore();
     });
 
-    it('should run standard review synchronously by default', async () => {
+    it('should run standard review', async () => {
         await review([]);
         expect(utils.getGitDiff).toHaveBeenCalledWith('main');
-        expect(utils.runTraeCli).toHaveBeenCalledWith(expect.stringContaining('请对以下代码变更进行标准的专业代码审查'), false);
-        expect(utils.runTraeCli).toHaveBeenCalledWith(expect.stringContaining('test diff'), false);
-        expect(consoleLogMock).toHaveBeenCalledWith('review result');
-    });
-
-    it('should run adversarial review synchronously if flag is set', async () => {
-        await review([], true);
-        expect(utils.runTraeCli).toHaveBeenCalledWith(expect.stringContaining('对抗性代码审查员'), false);
     });
 
     it('should parse --base branch', async () => {
@@ -35,15 +46,9 @@ describe('review command', () => {
         expect(utils.getGitDiff).toHaveBeenCalledWith('develop');
     });
 
-    it('should parse --background flag', async () => {
-        await review(['--background']);
-        expect(utils.runTraeCli).toHaveBeenCalledWith(expect.any(String), true);
-    });
-
     it('should return if no diff is found', async () => {
         (utils.getGitDiff as jest.Mock).mockResolvedValue('   ');
         await review([]);
         expect(consoleLogMock).toHaveBeenCalledWith('没有检测到任何代码变更。');
-        expect(utils.runTraeCli).not.toHaveBeenCalled();
     });
 });

@@ -10,14 +10,17 @@ allowed-tools: Bash(git:*), Bash(trae-cli:*)
 
 **Usage:**
 ```bash
-/trae:adversarial-review [--base main] [--background]
+/trae:adversarial-review [--base main] [--background] [--json]
 ```
 
 **Options:**
-- `--base <branch>`: 指定对比的基准分支，默认为 `main`。
-- `--background`: 将审查任务放到后台运行。
+- `--base <branch>`: 指定对比的基准分支，默认自动检测
+- `--background`: 将审查任务放到后台运行
+- `--yolo` / `-y`: YOLO 模式
+- `--json`: 返回结构化 JSON 输出
+- `--session-id <id>`: 指定会话 ID
 
 **Internal Execution:**
 ```bash
-npx --yes trae-plugin-cc adversarial-review [--base <branch>] [--background]
+npx --yes trae-plugin-cc adversarial-review [options]
 ```

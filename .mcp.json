@@ -2,13 +2,75 @@
   "tools": [
     {
       "name": "trae_run",
-      "description": "直接调用 trae-cli 执行任意自然语言任务",
+      "description": "使用 Trae Agent 执行任意自然语言任务。支持会话恢复、工具控制、结构化输出、隔离工作树等高级选项。通过 trae-cli auth 认证，无需额外 API Key。",
       "parameters": {
         "type": "object",
         "properties": {
-          "prompt": { "type": "string" }
+          "prompt": { "type": "string", "description": "任务描述" },
+          "resume": { "type": "string", "description": "恢复会话：会话ID 或 'AUTO' 自动恢复最近会话" },
+          "session_id": { "type": "string", "description": "指定新会话 ID" },
+          "yolo": { "type": "boolean", "description": "YOLO 模式，跳过工具权限确认" },
+          "allowed_tools": { "type": "array", "items": { "type": "string" }, "description": "自动批准的工具列表，如 Bash, Edit, Replace" },
+          "disallowed_tools": { "type": "array", "items": { "type": "string" }, "description": "自动拒绝的工具列表" },
+          "json_output": { "type": "boolean", "description": "返回结构化 JSON 输出" },
+          "background": { "type": "boolean", "description": "后台执行" },
+          "worktree": { "type": "string", "description": "在隔离的 git worktree 中工作，'__auto__' 自动生成名称" },
+          "query_timeout": { "type": "string", "description": "单次查询超时，如 30s, 5m" },
+          "bash_tool_timeout": { "type": "string", "description": "Bash 工具超时" },
+          "inject_context": { "type": "string", "description": "注入指定会话的上下文到 prompt 中" }
         },
         "required": ["prompt"]
+      }
+    },
+    {
+      "name": "trae_review",
+      "description": "使用 Trae Agent 对代码变更进行专业审查。自动获取 git diff 并提交审查。支持对抗性审查模式。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "base_branch": { "type": "string", "description": "基准分支", "default": "main" },
+          "adversarial": { "type": "boolean", "description": "对抗性审查模式，极度严苛地检查代码" },
+          "background": { "type": "boolean", "description": "后台执行" },
+          "yolo": { "type": "boolean", "description": "YOLO 模式" },
+          "json_output": { "type": "boolean", "description": "返回结构化 JSON 输出" },
+          "session_id": { "type": "string", "description": "指定会话 ID" }
+        }
+      }
+    },
+    {
+      "name": "trae_sessions",
+      "description": "列出或查询 trae-cli 的历史会话。可查看会话详情、对话历史、工具调用记录、完整上下文摘要。数据来源于 ~/Library/Caches/trae_cli/sessions/。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "detail", "conversation", "tools", "context", "recent", "find", "delete"],
+            "description": "list: 列出所有会话; detail: 查看会话详情; conversation: 获取对话历史; tools: 获取工具调用记录; context: 获取完整上下文摘要; recent: 获取最近会话; find: 按主题搜索; delete: 删除会话"
+          },
+          "session_id": { "type": "string", "description": "会话 ID (detail/conversation/tools/context/delete 需要)" },
+          "cwd": { "type": "string", "description": "按工作目录筛选 (list/recent)" },
+          "limit": { "type": "integer", "description": "返回数量限制", "default": 20 },
+          "topic": { "type": "string", "description": "搜索主题关键词 (find)" }
+        }
+      }
+    },
+    {
+      "name": "trae_acp",
+      "description": "通过 ACP (Agent Communication Protocol) 与 Trae Agent 交互。启动/停止 ACP Server，发现可用 Agent，执行任务或流式获取结果。ACP Server 通过 trae-cli acp serve 启动。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["start", "stop", "status", "agents", "run", "stream"],
+            "description": "start: 启动 ACP Server; stop: 停止; status: 查看状态; agents: 发现可用 Agent; run: 执行任务; stream: 流式执行任务"
+          },
+          "prompt": { "type": "string", "description": "任务描述 (run/stream 需要)" },
+          "yolo": { "type": "boolean", "description": "YOLO 模式 (start/run)" },
+          "allowed_tools": { "type": "array", "items": { "type": "string" }, "description": "允许的工具 (start)" },
+          "disabled_tools": { "type": "array", "items": { "type": "string" }, "description": "禁用的工具 (start)" }
+        }
       }
     }
   ]

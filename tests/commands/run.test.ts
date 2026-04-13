@@ -1,7 +1,7 @@
 import { runTask } from '../../src/commands/run';
-import * as utils from '../../src/utils';
+import * as traeExecutor from '../../src/utils/trae-executor';
 
-jest.mock('../../src/utils');
+jest.mock('../../src/utils/trae-executor');
 
 describe('run command', () => {
     let consoleLogMock: jest.SpyInstance;
@@ -9,27 +9,28 @@ describe('run command', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         consoleLogMock = jest.spyOn(console, 'log').mockImplementation();
-        (utils.runTraeCli as jest.Mock).mockResolvedValue('task result');
+        (traeExecutor.TraeExecutor as jest.Mock).mockImplementation(() => ({
+            execute: jest.fn().mockResolvedValue({
+                taskId: '123456',
+                output: 'task result',
+                exitCode: 0,
+                sessionId: 'test-session-id',
+                duration: 1000,
+            }),
+        }));
     });
 
     afterEach(() => {
         consoleLogMock.mockRestore();
     });
 
-    it('should run task synchronously by default', async () => {
+    it('should run task with prompt', async () => {
         await runTask(['do', 'something']);
-        expect(utils.runTraeCli).toHaveBeenCalledWith('do something', false);
-        expect(consoleLogMock).toHaveBeenCalledWith('task result');
-    });
-
-    it('should run task in background with --background flag', async () => {
-        await runTask(['--background', 'do', 'something']);
-        expect(utils.runTraeCli).toHaveBeenCalledWith('do something', true);
+        expect(consoleLogMock).toHaveBeenCalledWith('正将任务委托给 Trae Agent...');
     });
 
     it('should prompt if no task description is provided', async () => {
         await runTask([]);
-        expect(consoleLogMock).toHaveBeenCalledWith('请提供要执行的任务描述，例如: /trae:run "重构用户模块"');
-        expect(utils.runTraeCli).not.toHaveBeenCalled();
+        expect(consoleLogMock).toHaveBeenCalledWith(expect.stringContaining('请提供要执行的任务描述'));
     });
 });

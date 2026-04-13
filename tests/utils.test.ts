@@ -3,7 +3,6 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Mock child_process and fs
 jest.mock('child_process');
 jest.mock('fs');
 
@@ -73,33 +72,6 @@ describe('Utils', () => {
     describe('runTraeCli', () => {
         const PLUGIN_DIR = path.join(process.cwd(), '.claude-trae-plugin');
 
-        it('should execute synchronously and return output', async () => {
-            (child_process.exec as unknown as jest.Mock).mockImplementation((cmd, cb) => {
-                if (cb) cb(null, { stdout: 'success output', stderr: '' });
-                return { stdout: 'success output', stderr: '' };
-            });
-            const result = await utils.runTraeCli('test prompt');
-            expect(result).toBe('success output');
-            expect(child_process.exec).toHaveBeenCalledWith('trae-cli run "test prompt"', expect.any(Function));
-        });
-
-        it('should execute synchronously and return stderr if stdout is empty', async () => {
-             (child_process.exec as unknown as jest.Mock).mockImplementation((cmd, cb) => {
-                 if (cb) cb(null, { stdout: '', stderr: 'stderr output' });
-                 return { stdout: '', stderr: 'stderr output' };
-             });
-             const result = await utils.runTraeCli('test prompt');
-             expect(result).toBe('stderr output');
-         });
-
-         it('should throw error on synchronous failure', async () => {
-             (child_process.exec as unknown as jest.Mock).mockImplementation((cmd, cb) => {
-                 if (cb) cb(new Error('exec fail'), { stdout: '', stderr: 'stderr fail' });
-                 throw Object.assign(new Error('exec fail'), { stdout: '', stderr: 'stderr fail' });
-             });
-             await expect(utils.runTraeCli('test prompt')).rejects.toThrow('执行失败: exec fail');
-         });
-
         it('should start in background when background=true', async () => {
             const mockDate = 1000;
             jest.spyOn(Date, 'now').mockReturnValue(mockDate);
@@ -117,13 +89,39 @@ describe('Utils', () => {
 
             expect(fs.mkdirSync).toHaveBeenCalledWith(PLUGIN_DIR, { recursive: true });
             expect(fs.openSync).toHaveBeenCalledWith(path.join(PLUGIN_DIR, `${mockDate}.log`), 'a');
-            expect(child_process.spawn).toHaveBeenCalledWith('trae-cli', ['run', 'test prompt'], {
+            expect(child_process.spawn).toHaveBeenCalledWith('trae-cli', ['--print', 'test prompt'], {
                 detached: true,
                 stdio: ['ignore', 1, 1]
             });
             expect(unrefMock).toHaveBeenCalled();
             expect(fs.writeFileSync).toHaveBeenCalledWith(path.join(PLUGIN_DIR, `${mockDate}.pid`), '1234');
             expect(result).toContain(`任务已在后台启动 (ID: ${mockDate})`);
+        });
+    });
+
+    describe('exports', () => {
+        it('should export SessionReader', () => {
+            expect(utils.SessionReader).toBeDefined();
+        });
+
+        it('should export AuthBridge', () => {
+            expect(utils.AuthBridge).toBeDefined();
+        });
+
+        it('should export ContextBridge', () => {
+            expect(utils.ContextBridge).toBeDefined();
+        });
+
+        it('should export TraeExecutor', () => {
+            expect(utils.TraeExecutor).toBeDefined();
+        });
+
+        it('should export AcpClient', () => {
+            expect(utils.AcpClient).toBeDefined();
+        });
+
+        it('should export AcpServerManager', () => {
+            expect(utils.AcpServerManager).toBeDefined();
         });
     });
 });
