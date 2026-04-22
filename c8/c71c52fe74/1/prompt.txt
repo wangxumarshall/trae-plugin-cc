@@ -11,3 +11,11 @@ node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" result
 Requires a task ID (from `trae-status` or `trae-run --background`).
 
 Example: `result 1713700000000`
+
+---
+
+对mcp支持情况
+
+---
+
+全面更新项目，要求体现同时指出opencode和claude code，因为我们已经移植到opencode了。
