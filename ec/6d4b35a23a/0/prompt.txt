@@ -1,0 +1,7 @@
+I need to find and understand the ACP server startup code in this project. The command `node dist/index.js acp start` is failing with "ACP server exited before port detected". The server logs show successful token login but then closes.
+
+Please:
+1. Find the source code that handles the "acp start" command (look in src/ directory)
+2. Find how the ACP server is spawned and how it tries to detect the port
+3. Find what `trae-cli acp serve` expects and how it outputs the port
+4. Return the relevant file paths and line numbers, plus the key code snippets that handle startup and port detection
