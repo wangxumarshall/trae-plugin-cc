@@ -1,0 +1,1 @@
+不对呀，opencode 也可以通过 /trae xxx 来使用呀
