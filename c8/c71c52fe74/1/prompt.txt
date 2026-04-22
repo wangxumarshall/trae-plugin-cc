@@ -1,0 +1,13 @@
+trae-plugin-cc 是否支持mcp
+
+---
+
+Get background task output by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" result 
+```
+
+Requires a task ID (from `trae-status` or `trae-run --background`).
+
+Example: `result 1713700000000`
