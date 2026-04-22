@@ -28,6 +28,7 @@ var import_child_process4 = require("child_process");
 var import_util = require("util");
 var fs4 = __toESM(require("fs"));
 var path4 = __toESM(require("path"));
+var os3 = __toESM(require("os"));
 
 // src/utils/session-reader.ts
 var fs = __toESM(require("fs"));
@@ -2887,7 +2888,13 @@ var AuthBridge = class {
     return this.config?.plugins || [];
   }
   buildSpawnEnv() {
-    return { ...process.env };
+    const env = { ...process.env };
+    const homeBin = path2.join(os2.homedir(), ".local", "bin");
+    const existingPath = env.PATH || "";
+    if (!existingPath.split(":").includes(homeBin)) {
+      env.PATH = `${homeBin}:${existingPath}`;
+    }
+    return env;
   }
 };
 
@@ -3292,6 +3299,11 @@ ${recentOutput}`;
         });
       };
       const env = { ...process.env };
+      const homeBin = require("path").join(require("os").homedir(), ".local", "bin");
+      const existingPath = env.PATH || "";
+      if (!existingPath.split(":").includes(homeBin)) {
+        env.PATH = `${homeBin}:${existingPath}`;
+      }
       if (process.env.TRAECLI_PERSONAL_ACCESS_TOKEN) {
         env.TRAECLI_PERSONAL_ACCESS_TOKEN = process.env.TRAECLI_PERSONAL_ACCESS_TOKEN;
       }
@@ -3389,12 +3401,22 @@ ${recentOutput}`;
 // src/utils.ts
 var execAsync = (0, import_util.promisify)(import_child_process4.exec);
 var PLUGIN_DIR2 = path4.join(process.cwd(), ".claude-trae-plugin");
+function getTraeCliEnv() {
+  const env = { ...process.env };
+  const homeBin = path4.join(os3.homedir(), ".local", "bin");
+  const existingPath = env.PATH || "";
+  if (!existingPath.split(":").includes(homeBin)) {
+    env.PATH = `${homeBin}:${existingPath}`;
+  }
+  return env;
+}
 function isSafeGitRef(ref) {
   return /^[A-Za-z0-9._\/-]+$/.test(ref);
 }
 async function isTraeCliInstalled() {
   try {
-    await execAsync("which trae-cli");
+    const env = getTraeCliEnv();
+    await execAsync("which trae-cli", { env });
     return true;
   } catch {
     return false;
@@ -3421,6 +3443,7 @@ function ensurePluginDir2() {
 }
 async function runTraeCli(prompt, background = false) {
   ensurePluginDir2();
+  const env = getTraeCliEnv();
   const timestamp2 = Date.now();
   const logFile = path4.join(PLUGIN_DIR2, `${timestamp2}.log`);
   const pidFile = path4.join(PLUGIN_DIR2, `${timestamp2}.pid`);
@@ -3429,7 +3452,8 @@ async function runTraeCli(prompt, background = false) {
     const err = fs4.openSync(logFile, "a");
     const child = (0, import_child_process4.spawn)("trae-cli", ["--print", prompt], {
       detached: true,
-      stdio: ["ignore", out, err]
+      stdio: ["ignore", out, err],
+      env
     });
     child.unref();
     if (child.pid) {
@@ -3440,7 +3464,8 @@ async function runTraeCli(prompt, background = false) {
   }
   return new Promise((resolve, reject) => {
     const child = (0, import_child_process4.spawn)("trae-cli", ["--print", prompt], {
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
+      env
     });
     if (child.pid) {
       fs4.writeFileSync(pidFile, child.pid.toString());

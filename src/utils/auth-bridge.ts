@@ -87,6 +87,12 @@ export class AuthBridge {
   }
 
   buildSpawnEnv(): NodeJS.ProcessEnv {
-    return { ...process.env };
+    const env = { ...process.env };
+    const homeBin = path.join(os.homedir(), '.local', 'bin');
+    const existingPath = env.PATH || '';
+    if (!existingPath.split(':').includes(homeBin)) {
+      env.PATH = `${homeBin}:${existingPath}`;
+    }
+    return env;
   }
 }

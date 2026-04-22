@@ -10,7 +10,16 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { getPluginDir, getRunningJobs } from './job-utils.mjs';
 
+const HOME_BIN = join(homedir(), '.local', 'bin');
 const CONFIG_FILE = join(homedir(), '.trae', 'trae_cli.yaml');
+
+// Ensure ~/.local/bin is in PATH for trae-cli detection
+(function ensurePath() {
+  const existing = process.env.PATH || '';
+  if (!existing.split(':').includes(HOME_BIN)) {
+    process.env.PATH = `${HOME_BIN}:${existing}`;
+  }
+})();
 
 function checkTraeCliInstalled() {
   // Use execSync only with fixed commands, no user input

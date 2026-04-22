@@ -13,7 +13,7 @@ describe('Utils', () => {
 
     describe('isTraeCliInstalled', () => {
         it('should return true if which succeeds', async () => {
-            (child_process.exec as unknown as jest.Mock).mockImplementation((cmd, cb) => {
+            (child_process.exec as unknown as jest.Mock).mockImplementation((_cmd: string, _opts: object, cb: Function) => {
                 if (cb) cb(null, { stdout: '/usr/local/bin/trae-cli', stderr: '' });
                 return { stdout: '/usr/local/bin/trae-cli', stderr: '' };
             });
@@ -89,10 +89,14 @@ describe('Utils', () => {
 
             expect(fs.mkdirSync).toHaveBeenCalledWith(PLUGIN_DIR, { recursive: true });
             expect(fs.openSync).toHaveBeenCalledWith(path.join(PLUGIN_DIR, `${mockDate}.log`), 'a');
-            expect(child_process.spawn).toHaveBeenCalledWith('trae-cli', ['--print', 'test prompt'], {
-                detached: true,
-                stdio: ['ignore', 1, 1]
-            });
+            expect(child_process.spawn).toHaveBeenCalledWith(
+                'trae-cli',
+                ['--print', 'test prompt'],
+                expect.objectContaining({
+                    detached: true,
+                    stdio: ['ignore', 1, 1],
+                })
+            );
             expect(unrefMock).toHaveBeenCalled();
             expect(fs.writeFileSync).toHaveBeenCalledWith(path.join(PLUGIN_DIR, `${mockDate}.pid`), '1234');
             expect(result).toContain(`任务已在后台启动 (ID: ${mockDate})`);

@@ -85,8 +85,13 @@ export class AcpServerManager {
         });
       };
 
-      // 设置环境变量，支持 PAT 认证
-      const env = { ...process.env };
+      // 设置环境变量，支持 PAT 认证和 trae-cli 路径
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      const homeBin = require('path').join(require('os').homedir(), '.local', 'bin');
+      const existingPath = env.PATH || '';
+      if (!existingPath.split(':').includes(homeBin)) {
+        env.PATH = `${homeBin}:${existingPath}`;
+      }
       if (process.env.TRAECLI_PERSONAL_ACCESS_TOKEN) {
         env.TRAECLI_PERSONAL_ACCESS_TOKEN = process.env.TRAECLI_PERSONAL_ACCESS_TOKEN;
       }

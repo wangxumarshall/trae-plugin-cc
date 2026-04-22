@@ -2,10 +2,21 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 export const execAsync = promisify(exec);
 
 const PLUGIN_DIR = path.join(process.cwd(), '.claude-trae-plugin');
+
+function getTraeCliEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  const homeBin = path.join(os.homedir(), '.local', 'bin');
+  const existingPath = env.PATH || '';
+  if (!existingPath.split(':').includes(homeBin)) {
+    env.PATH = `${homeBin}:${existingPath}`;
+  }
+  return env;
+}
 
 function isSafeGitRef(ref: string): boolean {
   return /^[A-Za-z0-9._\/-]+$/.test(ref);
@@ -13,7 +24,8 @@ function isSafeGitRef(ref: string): boolean {
 
 export async function isTraeCliInstalled(): Promise<boolean> {
   try {
-    await execAsync('which trae-cli');
+    const env = getTraeCliEnv();
+    await execAsync('which trae-cli', { env });
     return true;
   } catch {
     return false;
@@ -44,6 +56,7 @@ export function ensurePluginDir() {
 
 export async function runTraeCli(prompt: string, background: boolean = false): Promise<string> {
   ensurePluginDir();
+  const env = getTraeCliEnv();
   const timestamp = Date.now();
   const logFile = path.join(PLUGIN_DIR, `${timestamp}.log`);
   const pidFile = path.join(PLUGIN_DIR, `${timestamp}.pid`);
@@ -54,7 +67,8 @@ export async function runTraeCli(prompt: string, background: boolean = false): P
 
     const child = spawn('trae-cli', ['--print', prompt], {
       detached: true,
-      stdio: ['ignore', out, err]
+      stdio: ['ignore', out, err],
+      env,
     });
 
     child.unref();
@@ -68,7 +82,8 @@ export async function runTraeCli(prompt: string, background: boolean = false): P
 
   return new Promise((resolve, reject) => {
     const child = spawn('trae-cli', ['--print', prompt], {
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
     });
 
     if (child.pid) {
@@ -113,3 +128,4 @@ export { ContextBridge } from './utils/context-bridge';
 export { TraeExecutor } from './utils/trae-executor';
 export { AcpClient } from './utils/acp-client';
 export { AcpServerManager } from './utils/acp-server-manager';
+
