@@ -1,0 +1,51 @@
+Write a detailed implementation plan to file `/Users/ubuntu/1-project/idea0015-trae-plugin-cc/plan.md` that covers:
+
+Based on my deep analysis of this trae-plugin-cc project, here's what needs to be done:
+
+## Part 1: Fix Code Issues
+
+### 1.1 rescue.ts - Unused parameters bug
+File: `src/commands/rescue.ts`
+- Lines 48-49: `retries` and `force` parameters are parsed but never used
+- Fix: Either implement the retries logic (retry the diagnosis if it fails) and force logic (skip confirmation), OR remove these unused parameters from the code and keep the code honest. Since `runTraeCli` is called once without retry logic, and there's no confirmation prompt to skip, the most honest fix is to remove the unused variables. But also remove them from the command docs.
+
+Actually the better approach: implement them properly. `retries` should wrap the runTraeCli call in a retry loop. `force` should skip any confirmation prompts (though there currently aren't any - so we just parse and keep it ready for future use, but don't document it as functional yet). The most pragmatic fix: keep parsing them (forward compatible), but remove from the README since they're not functionally implemented yet.
+
+Wait - actually the best fix is: just remove the unused parsing. The code only does a single call. Don't pretend to support features that don't exist. Remove lines 48-49 and the parsing logic for --retries and --force. Then update README to remove those parameters from rescue docs.
+
+### 1.2 Also check: `src/commands/hooks.ts` maps 'stop-gate' but session-lifecycle-hook.mjs also handles 'PostReview' which hooks.json calls. The hooks.ts only maps 3 hooks. The 'PostToolUse' hook in hooks.json calls "PostReview" argument, but hooks.ts doesn't have a 'post-review' mapping. This is a gap - but since hooks are called via the hooks.json command directly (not through `trae hooks`), it works. So no fix needed here.
+
+## Part 2: Update README 功能详解 section
+
+### 2.1 Add missing `delete-smoke` subcommand to 会话管理 section
+- After the `delete` row in the table, add `delete-smoke` | 删除所有包含"smoke"的会话 | `/trae:sessions delete-smoke`
+
+### 2.2 Add `--resume=<ID>` and `--worktree=<NAME>` syntax variants to 任务执行 section
+- In the 执行模式 table, note that `--resume` supports both `--resume [ID]` and `--resume=<ID>` formats
+- In the 执行模式 table, note that `--worktree` supports both `--worktree [NAME]` and `--worktree=<NAME>` formats
+
+### 2.3 Update rescue command documentation
+- Remove `--retries` and `--force` parameters from the rescue table (since they are not functionally implemented)
+- OR keep them as "预留参数" (reserved parameters)
+
+### 2.4 Add hooks command to 功能详解 (as an internal/advanced command)
+- Add a new section for `/trae:hooks` explaining it's used internally by hooks.json for lifecycle events
+
+### 2.5 Update command reference section at the bottom
+- Add `delete-smoke` to sessions table
+- Update rescue options
+
+## Part 3: Update commands/sessions.md
+- Add `delete-smoke` to the Actions list
+
+## Part 4: Run existing tests
+- Run `npm test` to verify all tests pass
+
+## Part 5: End-to-end testing
+Since trae-cli is NOT installed on this system, we need to test what we can:
+- Test all CLI commands that don't require trae-cli (sessions commands with mocked data, jobs commands that work with filesystem, etc.)
+- Test argument parsing for each command by running `node dist/index.js <cmd> <args>` and verifying output/help messages
+- Verify each command's help/usage output
+- Test error handling paths
+
+Please write this plan as a well-structured markdown file at `/Users/ubuntu/1-project/idea0015-trae-plugin-cc/plan.md`.
