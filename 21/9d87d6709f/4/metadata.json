@@ -1,0 +1,66 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "219d87d6709f",
+  "session_id": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T11:01:46.287787Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/session-lifecycle-hook.mjs",
+    "src/utils/acp-server-manager.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "Qwen3.6-Plus",
+  "turn_id": "422a951886b1",
+  "token_usage": {
+    "input_tokens": 8525483,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 22304,
+    "api_call_count": 83
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T11:01:46.267338Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 610,
+    "human_modified": 20,
+    "human_removed": 0,
+    "total_committed": 610,
+    "total_lines_changed": 664,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 338,
+      "user_lines_removed": 15,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".codex/agents/entire-search.toml": 23,
+        ".codex/config.toml": 3,
+        ".codex/hooks.json": 40,
+        ".opencode/plugins/entire.ts": 177,
+        "scripts/session-lifecycle-hook.mjs": 1,
+        "src/utils/acp-server-manager.ts": 94
+      },
+      "user_removed_per_file": {
+        "scripts/session-lifecycle-hook.mjs": 1,
+        "src/utils/acp-server-manager.ts": 14
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 338,
+      "agent_lines_removed": 15
+    }
+  ]
+}

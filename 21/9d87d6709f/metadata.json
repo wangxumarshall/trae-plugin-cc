@@ -3,7 +3,7 @@
   "checkpoint_id": "219d87d6709f",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 6,
+  "checkpoints_count": 7,
   "files_touched": [
     "scripts/session-lifecycle-hook.mjs",
     "src/utils/acp-server-manager.ts"
@@ -32,13 +32,19 @@
       "transcript": "/21/9d87d6709f/3/full.jsonl",
       "content_hash": "/21/9d87d6709f/3/content_hash.txt",
       "prompt": "/21/9d87d6709f/3/prompt.txt"
+    },
+    {
+      "metadata": "/21/9d87d6709f/4/metadata.json",
+      "transcript": "/21/9d87d6709f/4/full.jsonl",
+      "content_hash": "/21/9d87d6709f/4/content_hash.txt",
+      "prompt": "/21/9d87d6709f/4/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1953195,
+    "input_tokens": 10478678,
     "cache_creation_tokens": 0,
     "cache_read_tokens": 283648,
-    "output_tokens": 27656,
-    "api_call_count": 55
+    "output_tokens": 49960,
+    "api_call_count": 138
   }
 }

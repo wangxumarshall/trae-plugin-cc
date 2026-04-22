@@ -1,0 +1,13 @@
+The following tool was executed by the user
+
+---
+
+The following tool was executed by the user
+
+---
+
+阅读完整的修复计划：~/.claude/plans/shimmering-singing-breeze.md ，并源码级检查修复完成情况，还有哪些问题没有修复，制定清单和修复计划
+
+---
+
+深度理解本项目，将其移植到opencode上，然后对所有功能进行完整的测试，最后阅读~/.claude/plans/glittery-riding-crane.md，解决这几个问题；最终要求在opencode完成所有功能测试
