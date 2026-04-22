@@ -115,3 +115,7 @@ acp status
 ---
 
 项目中一直有dist/index.js这种编译后的结果，这样做是否优雅；是否有更优雅的实现方案
+
+---
+
+git commit docs; git push docs
