@@ -22,8 +22,8 @@ The plugin bridges [**Claude Code**](https://claude.ai/code) and [**OpenCode**](
 │  ┌──────────────────────┐          ┌──────────────────────────┐   │
 │  │    Claude Code       │          │       OpenCode           │   │
 │  ├──────────────────────┤          ├──────────────────────────┤   │
-│  │ 10 Slash Commands    │          │ 9  Bun Tools (.ts)       │   │
-│  │ 4  MCP Tools (.json) │          │ 10 Command Docs (.md)    │   │
+│  │ 10 Slash Commands    │          │ 10 Commands (/trae:*)    │   │
+│  │ 4  MCP Tools (.json) │          │ 9  Bun Tools (.ts)       │   │
 │  │ 4  Lifecycle Hooks   │          │ Event Hooks (.ts)        │   │
 │  └──────────┬───────────┘          └──────────┬───────────────┘   │
 │             │                                  │                    │
@@ -40,7 +40,7 @@ The plugin bridges [**Claude Code**](https://claude.ai/code) and [**OpenCode**](
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Both platforms share the same core CLI (`dist/index.js`). Claude Code invokes via slash commands/MCP/hooks; OpenCode invokes via Bun tools that `spawn("node", [dist/index.js, ...])`.
+Both platforms share the same core CLI (`dist/index.js`) with unified `/trae:*` command interface. Claude Code additionally supports MCP tools for AI-autonomous invocation.
 
 ## Prerequisites
 
@@ -106,7 +106,7 @@ Expected output:
 
 ## Quick Start
 
-### Claude Code (slash commands)
+Both Claude Code and OpenCode support the same `/trae:*` command interface:
 
 ```
 /trae:run "重构用户认证模块"           # execute task
@@ -117,21 +117,18 @@ Expected output:
 /trae:acp run "分析代码质量"            # execute via ACP
 ```
 
-### OpenCode (Bun tools)
-
-OpenCode Agent calls tools directly: `trae-run`, `trae-review`, `trae-sessions`, `trae-acp`, etc. See [Commands Reference](#commands-reference) for full parameter details.
+> **Note**: Claude Code additionally registers 4 MCP tools (`trae_run`, `trae_review`, `trae_sessions`, `trae_acp`) for AI-autonomous invocation beyond what the user can trigger manually.
 
 ## Commands Reference
 
-All CLI commands: `node dist/index.js <command> [args]`
+All commands are invoked as `/trae:<command> [args]` in both Claude Code and OpenCode.
 
 ### `setup`
 
 Verify trae-cli installation and auth status.
 
 ```bash
-/trae:setup          # Claude Code
-# OpenCode: trae-setup tool (no args)
+/trae:setup
 ```
 
 ---
@@ -175,7 +172,6 @@ Code review with automatic git diff.
 ```bash
 /trae:review [options]                   # standard
 /trae:adversarial-review [options]       # adversarial (strict)
-# OpenCode: trae-review tool with adversarial: true/false
 ```
 
 | Option | Alias | Description |
