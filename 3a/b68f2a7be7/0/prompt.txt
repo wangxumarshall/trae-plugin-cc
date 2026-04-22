@@ -1,0 +1,72 @@
+对抗性分析如下功能是否实现：[Pasted ~60 li1. 任务执行主能力 /trae:run（含 --background, --yolo, --resume, --worktree, --allowed-tool,           
+  --disallowed-tool, --query-timeout, --bash-tool-timeout, --session-id, -c）                           
+    - 证据：src/commands/run.ts, src/utils/trae-executor.ts                                             
+  2. 后台任务管理 /trae:status /trae:result /trae:cancel                                                
+    - 证据：src/commands/jobs.ts, src/utils/trae-executor.ts                                            
+  3. 代码审查命令存在（标准/对抗）                                                                      
+    - 证据：src/index.ts, src/commands/review.ts                                                        
+  4. 会话管理命令面存在（list/detail/conversation/tools/context/recent/find/delete）                    
+    - 证据：src/commands/sessions.ts, src/utils/session-reader.ts                                       
+  5. ACP 命令面存在（start/stop/status/agents/run/stream）                                              
+    - 证据：src/commands/acp.ts, src/utils/acp-client.ts, src/utils/acp-server-manager.ts               
+  6. MCP 四工具声明存在                                                                                 
+    - 证据：.mcp.json                                                                                   
+  7. hooks 事件绑定存在（SessionStart/SessionEnd/Stop/PostToolUse）                                     
+    - 证据：hooks/hooks.json                                                                            
+                                                                                                        
+  Partial（部分成立）                                                                                   
+                                                                                                        
+  1. --json 结构化输出体验                                                                              
+    - 代码支持解析 JSON：src/utils/trae-executor.ts:177-181
+    - 但实跑时 run --json 未看到 README 期望的结构化块，说明依赖上游 trae-cli --print --json            
+  实际返回格式/内容。                                                                                   
+  2. 会话管理“完整历史”能力                                                                             
+    - 实现存在，但当前机器会话目录为空，无法证明 detail/conversation/tools/context 的真实内容质量。     
+  3. ACP 全链路                                                                                         
+    - status 可用；start/run/stream/agents 未在本轮全部实跑验证。                                       
+  4. MCP “自动注册+Claude 自主调用”                                                                     
+    - .mcp.json 声明可证实；但“自动注册与 AI 自主选用”必须在 Claude 插件运行时手动验收。                
+  5. review 输出体验                                                                                    
+    - review.ts 在非 json/background 分支未显式打印 result.output，与                                   
+  README“可读审查输出”表述存在体验风险。                                                                
+                                                                                                        
+  风险/偏差（建议修正）                                                                                 
+                                               
+  1. 认证配置路径不一致                                                                                 
+    - README/setup 使用 ~/.trae/trae_cli.yaml（src/utils/auth-bridge.ts）
+    - SessionStart hook 检查的是 ./.trae/trae_config.yaml（scripts/session-lifecycle-hook.mjs:12,25）   
+    - 这会导致 hook 可能误报“配置不存在”。                                                              
+  2. PostToolUse 记录审查结果未落地                                                                     
+    - README 写“执行 /trae:review 后记录审查结果”                                                       
+    - 实际 postReview() 是占位空实现：scripts/session-lifecycle-hook.mjs:106-109。                      
+                                                                                                        
+  ---                                                                                                   
+  针对你的“4（任务委托）”单独结论                                                                       
+                                                                                                        
+  已验证通过（P0）：
+  - /trae:run 可执行                                                                                    
+  - /trae:run --background 可执行并落盘日志                                                             
+  - /trae:status 可查状态                                                                               
+  - /trae:result <id> 可取结果                                                                          
+  - /trae:cancel <id> 行为符合实现逻辑                                                                  
+                                                                                                        
+  待补充（建议下一步手动验收）：                                                                        
+  - /trae:run --resume [id]（需要已有 session）                                                         
+  - /trae:run --worktree [name]（验证真实 worktree 行为）                                               
+  - /trae:run --json 在你目标环境下是否稳定返回结构化结果                                               
+                                                                                                        
+  ---                                                                                                   
+  如果你要，我下一步可以直接给你一版“可贴到 issue/PR 的最终验证表（每条 README                          
+  功能一行：Pass/Partial/Fail + 证据路径 + 重现命令）”。
+
+---
+
+阅读完整的修复计划：~/.claude/plans/shimmering-singing-breeze.md
+
+---
+
+The following tool was executed by the user
+
+---
+
+The following tool was executed by the user
