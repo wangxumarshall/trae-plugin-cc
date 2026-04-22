@@ -1,0 +1,25 @@
+为什么claude code和opencode 支持的tools、command、hook、mcp等的数量不一样
+
+---
+
+为什么opencode上这样实现：OpenCode 的 trae-review 工具内部有一个 adversarial 布尔参数来切换模式——一个工具做了两个命令的事。
+
+---
+
+为什么 opencode没有mcp
+
+---
+
+协议详细的差异是什么
+
+---
+
+详细理解acp协议，结合本项目源码
+
+---
+
+把上述理解的acp协议内容，全部写入本地docs/acp.md中
+
+---
+
+深度理解claude code 与 opencode 在具体command、plugin、hook、mcp等实现上的差异，结合他们两个自身的实现，撰写文章，写入docs目录，要求讲清楚claude code和opencode的功能/原理等的差异，已经本项目针对这些差异做的详细的设计和实现，结合代码深度解析。
