@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "48e40c82ac1a",
+  "session_id": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T11:21:53.916291Z",
+  "branch": "e2e-review-test",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/utils/auth-bridge.ts",
+    "scripts/session-lifecycle-hook.mjs",
+    "src/utils/acp-server-manager.ts",
+    "src/utils.ts",
+    "tests/utils.test.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "Qwen3.6-Plus",
+  "turn_id": "cb0b01e403bd",
+  "checkpoint_transcript_start": 153,
+  "transcript_lines_at_start": 153,
+  "token_usage": {
+    "input_tokens": 7365668,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 5192,
+    "api_call_count": 42
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T11:21:53.889172Z",
+    "agent_lines": 50,
+    "agent_removed": 11,
+    "human_added": 29,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 79,
+    "total_lines_changed": 94,
+    "agent_percentage": 64.8936170212766,
+    "metric_version": 2
+  }
+}
