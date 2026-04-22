@@ -1,9 +1,8 @@
 # trae-plugin-cc
 
-字节 Trae Agent (trae-cli) 双平台插件 — 同时支持 **Claude Code** 和 **OpenCode**。
-提供任务委托、代码审查、会话管理、ACP 协议通信等功能，实现跨框架一致的 AI Agent 协作体验。
+trae-plugin-cc支持在 **Claude Code** 和 **OpenCode**中无缝调用trae-cli，提供任务委托、代码审查、会话管理、ACP 协议通信等功能，实现跨框架一致的 AI Agent 协作体验。
 
-## 双平台架构
+## 架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -313,20 +312,6 @@ ACP 使用 **JSON-RPC over STDIO**（标准协议），非 HTTP 服务。
 | 文件系统直读 | `~/Library/Caches/trae_cli/sessions/` | 查询历史会话 |
 | 结构化输出 | `trae-cli -p --json` | 执行任务并追踪 |
 | ACP STDIO | `trae-cli acp serve` (JSON-RPC) | 跨框架 Agent 协作 |
-
-## 认证机制
-
-trae-cli 使用 OAuth2 认证（非 API Key），配置存储在 `~/.trae/trae_cli.yaml`。
-插件通过 `AuthBridge` 自动检测认证状态，子进程自动继承 auth token。
-
-```yaml
-allowed_tools:
-  - Edit
-  - Write
-model:
-  name: GLM-5
-trae_login_base_url: https://console.enterprise.trae.cn
-```
 
 ## 项目结构
 
