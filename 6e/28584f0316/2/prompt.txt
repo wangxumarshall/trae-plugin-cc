@@ -1,0 +1,21 @@
+I need to understand why OpenCode's `trae-review` tool uses an `adversarial` boolean parameter instead of having separate tools/commands like Claude Code's `/trae:review` and `/trae:adversarial-review`.
+
+Please examine:
+
+1. Read `.opencode/tools/trae-review.ts` - the full implementation. How does it handle the `adversarial` parameter? What CLI command does it invoke?
+
+2. Read `.opencode/commands/trae-review.md` and `.opencode/commands/trae-adversarial-review.md` - how are these command descriptions structured? What do they tell the agent?
+
+3. Read `commands/review.md` and `commands/adversarial-review.md` (Claude Code slash command definitions) - how are they different from OpenCode's approach?
+
+4. OpenCode's command discovery: OpenCode scans `.opencode/commands/*.md`. If there are TWO separate command files (trae-review.md AND trae-adversarial-review.md), why doesn't OpenCode expose them as two separate commands too? Why is the tool doing the merging instead?
+
+5. Read the OpenCode tool mapping in AGENTS.md section "OpenCode Tool → CLI Mapping" - does it document this 1-to-2 relationship?
+
+6. Check if OpenCode has any limitation on tool count, command count, or if this is purely a design choice by the plugin author.
+
+Return:
+- The exact code flow in `.opencode/tools/trae-review.ts` showing how `adversarial` parameter routes to `review` vs `adversarial-review` CLI commands
+- Whether `.opencode/commands/` has 2 separate files (review + adversarial-review), and if so, why the tool doesn't leverage both
+- Whether this is an intentional design decision, an OpenCode limitation, or an oversight
+- If it's intentional, what reasoning might exist (e.g., fewer tools = less context for the AI agent to reason about)
