@@ -1,0 +1,25 @@
+I need to deeply understand the implementation differences between Claude Code and OpenCode in this project. Read the following files COMPLETELY and return full content:
+
+## Claude Code integration files:
+1. `.claude-plugin/plugin.json` - plugin metadata
+2. `.claude-plugin/marketplace.json` - marketplace metadata
+3. `commands/*.md` - read ALL 10 files completely
+4. `.mcp.json` - ALL 4 MCP tool definitions
+5. `hooks/hooks.json` - ALL hook definitions
+6. `scripts/session-lifecycle-hook.mjs` - lifecycle hook script
+7. `scripts/stop-review-gate-hook.mjs` - stop gate hook script
+
+## OpenCode integration files:
+1. `.opencode/package.json` - deps
+2. `.opencode/tools/*.ts` - read ALL 9 files completely
+3. `.opencode/commands/*.md` - read ALL 10 files completely
+4. `.opencode/plugins/trae-hooks.ts` - event hooks plugin
+5. `.opencode/node_modules/@opencode-ai/plugin/dist/index.d.ts` - TypeScript types
+6. `.opencode/node_modules/@opencode-ai/plugin/dist/tool.d.ts` - tool types
+7. `.claude-plugin/` directory contents
+
+## Core shared code:
+1. `src/index.ts` - CLI entrypoint
+2. `AGENTS.md` - full architecture guide
+
+Return ALL file contents completely. Do NOT summarize or skip. I need exact source code to write a deep technical article.
