@@ -119,3 +119,7 @@ acp status
 ---
 
 git commit docs; git push docs
+
+---
+
+dist/index.js改成后编译后，是否影响用户首次使用，以及用户后续的使用
