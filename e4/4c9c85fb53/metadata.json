@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "e44c9c85fb53",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "dist/index.js",
+    "scripts/session-lifecycle-hook.mjs",
+    "src/utils.ts",
+    "src/utils/acp-server-manager.ts",
+    "src/utils/auth-bridge.ts",
+    "tests/utils.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e4/4c9c85fb53/0/metadata.json",
+      "transcript": "/e4/4c9c85fb53/0/full.jsonl",
+      "content_hash": "/e4/4c9c85fb53/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 1
+  }
+}
