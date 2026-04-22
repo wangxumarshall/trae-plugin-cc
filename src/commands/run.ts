@@ -17,11 +17,13 @@ export async function runTask(args: string[]) {
       config.jsonOutput = true;
     } else if (arg === '--yolo' || arg === '-y') {
       config.yolo = true;
-    } else if (arg === '--resume' && args[i + 1] && !args[i + 1].startsWith('-')) {
-      config.resume = args[i + 1];
-      i++;
-    } else if (arg === '--resume' || arg === '--resume=AUTO') {
-      config.resume = 'AUTO';
+    } else if (arg === '--resume') {
+      if (args[i + 1] && !args[i + 1].startsWith('-')) {
+        config.resume = args[i + 1];
+        i++;
+      } else {
+        config.resume = 'AUTO';
+      }
     } else if (arg.startsWith('--resume=')) {
       config.resume = arg.substring('--resume='.length);
     } else if (arg === '--session-id' && args[i + 1]) {

@@ -14,7 +14,9 @@ export default tool({
     const { $ } = await import("bun")
     const result = await $`node ${DIST_INDEX} cancel ${args.task_id}`
       .cwd(PLUGIN_DIR)
-      .quiet()
+    if (result.exitCode !== 0 && result.stderr) {
+      process.stderr.write(result.stderr)
+    }
     return { text: result.stdout }
   },
 })

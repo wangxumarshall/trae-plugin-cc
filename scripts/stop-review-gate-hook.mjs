@@ -55,7 +55,7 @@ async function stopGate() {
   console.log('─'.repeat(40));
   console.log('使用 --force 参数可强制退出');
 
-  process.exit(0);
+  process.exit(1);
 }
 
 stopGate();

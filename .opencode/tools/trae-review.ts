@@ -32,7 +32,10 @@ export default tool({
     if (args.session_id) cliArgs.push("--session-id", args.session_id)
 
     const { $ } = await import("bun")
-    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR).quiet()
+    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR)
+    if (result.exitCode !== 0 && result.stderr) {
+      process.stderr.write(result.stderr)
+    }
     return {
       text: result.stdout,
     }

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { getCliCacheDirs } from '../config';
 
 export type DataSource = 'file' | 'json' | 'acp';
 
@@ -88,17 +88,9 @@ export interface JsonOutputSession {
 export class SessionReader {
   private sessionsDir: string;
   private historyFile: string;
-  private jsonOutputCache: Map<string, JsonOutputSession> = new Map();
 
   constructor() {
-    const homeDir = os.homedir();
-    const candidates = [
-      path.join(homeDir, 'Library', 'Caches', 'trae-cli'),
-      path.join(homeDir, 'Library', 'Caches', 'trae_cli'),
-      path.join(homeDir, '.cache', 'trae-cli'),
-      path.join(homeDir, '.cache', 'trae_cli'),
-    ];
-
+    const candidates = getCliCacheDirs();
     const cacheDir = candidates.find(dir => fs.existsSync(dir)) || candidates[0];
 
     this.sessionsDir = path.join(cacheDir, 'sessions');
@@ -306,14 +298,6 @@ export class SessionReader {
     } catch {
       return false;
     }
-  }
-
-  cacheJsonOutput(sessionId: string, output: JsonOutputSession): void {
-    this.jsonOutputCache.set(sessionId, output);
-  }
-
-  getJsonOutputSession(sessionId: string): JsonOutputSession | null {
-    return this.jsonOutputCache.get(sessionId) || null;
   }
 
   getSessionsDir(): string {

@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthBridge } from './auth-bridge';
+import { getPluginDir } from '../config';
 
 export interface TraeTaskConfig {
   prompt: string;
@@ -27,7 +28,7 @@ export interface TraeTaskResult {
   jsonOutput?: any;
 }
 
-const PLUGIN_DIR = path.join(process.cwd(), '.claude-trae-plugin');
+const PLUGIN_DIR = getPluginDir();
 
 function ensurePluginDir() {
   if (!fs.existsSync(PLUGIN_DIR)) {
@@ -153,6 +154,7 @@ export class TraeExecutor {
       }
 
       let combinedOutput = '';
+      let settled = false;
 
       const append = (chunk: Buffer) => {
         const text = chunk.toString();
@@ -160,16 +162,36 @@ export class TraeExecutor {
         fs.appendFileSync(logFile, text);
       };
 
+      const settle = (result: TraeTaskResult) => {
+        if (settled) return;
+        settled = true;
+        if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+        resolve(result);
+      };
+
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+        child.kill('SIGKILL');
+        reject(error);
+      };
+
+      const TIMEOUT_MS = 5 * 60 * 1000;
+      const timeout = setTimeout(() => {
+        fail(new Error(`任务执行超时 (300s)`));
+      }, TIMEOUT_MS);
+
       child.stdout?.on('data', append);
       child.stderr?.on('data', append);
 
       child.on('error', (error) => {
-        if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
-        reject(new Error(`执行失败: ${error.message}`));
+        clearTimeout(timeout);
+        fail(new Error(`执行失败: ${error.message}`));
       });
 
       child.on('close', (code) => {
-        if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+        clearTimeout(timeout);
 
         let jsonOutput: any = undefined;
         let sessionId: string | undefined;
@@ -181,7 +203,7 @@ export class TraeExecutor {
           } catch {}
         }
 
-        resolve({
+        settle({
           taskId,
           output: combinedOutput,
           exitCode: code,

@@ -46,15 +46,22 @@ export class AcpClient {
   private stderr: Readable;
   private messageId = 0;
   private pendingRequests: Map<number, PendingRequest> = new Map();
+  private requestTimeouts: Map<number, NodeJS.Timeout> = new Map();
   private initialized = false;
   private sessionId: string | null = null;
   private onUpdates: Array<(update: AcpSessionUpdate) => void> = [];
   private buffer = '';
+  private readonly REQUEST_TIMEOUT_MS = 60000;
 
   constructor(stdin: Writable, stdout: Readable, stderr: Readable) {
     this.stdin = stdin;
     this.stdout = stdout;
     this.stderr = stderr;
+
+    const stderrChunks: string[] = [];
+    stderr.on('data', (chunk: Buffer) => {
+      stderrChunks.push(chunk.toString());
+    });
 
     this.stdout.on('data', (chunk: Buffer) => {
       this.buffer += chunk.toString();
@@ -157,6 +164,11 @@ export class AcpClient {
 
     if (message.id !== undefined && this.pendingRequests.has(message.id)) {
       const pending = this.pendingRequests.get(message.id)!;
+      const timeout = this.requestTimeouts.get(message.id);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.requestTimeouts.delete(message.id);
+      }
       this.pendingRequests.delete(message.id);
 
       if (message.error) {
@@ -182,11 +194,20 @@ export class AcpClient {
     };
 
     return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        this.requestTimeouts.delete(id);
+        reject(new Error(`Request timeout: ${method} (${this.REQUEST_TIMEOUT_MS}ms)`));
+      }, this.REQUEST_TIMEOUT_MS);
+
       this.pendingRequests.set(id, { resolve, reject });
+      this.requestTimeouts.set(id, timeout);
 
       this.stdin.write(JSON.stringify(message) + '\n', (err) => {
         if (err) {
+          clearTimeout(timeout);
           this.pendingRequests.delete(id);
+          this.requestTimeouts.delete(id);
           reject(new Error(`Failed to write to stdin: ${err.message}`));
         }
       });

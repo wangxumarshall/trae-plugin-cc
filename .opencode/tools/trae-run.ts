@@ -60,7 +60,10 @@ export default tool({
     if (args.inject_context)
       cliArgs.push("--inject-context", args.inject_context)
 
-    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR).quiet()
+    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR)
+    if (result.exitCode !== 0 && result.stderr) {
+      process.stderr.write(result.stderr)
+    }
     return {
       text: result.stdout,
     }

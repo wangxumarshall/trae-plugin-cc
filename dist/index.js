@@ -27,38 +27,64 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_child_process4 = require("child_process");
 var import_util = require("util");
 var fs4 = __toESM(require("fs"));
-var path4 = __toESM(require("path"));
-var os3 = __toESM(require("os"));
+
+// src/utils/env.ts
+var path = __toESM(require("path"));
+var os = __toESM(require("os"));
+var HOME_BIN = path.join(os.homedir(), ".local", "bin");
+function buildSpawnEnv() {
+  const env = { ...process.env };
+  const existingPath = env.PATH || "";
+  if (!existingPath.split(":").includes(HOME_BIN)) {
+    env.PATH = `${HOME_BIN}:${existingPath}`;
+  }
+  if (process.env.TRAECLI_PERSONAL_ACCESS_TOKEN) {
+    env.TRAECLI_PERSONAL_ACCESS_TOKEN = process.env.TRAECLI_PERSONAL_ACCESS_TOKEN;
+  }
+  return env;
+}
+
+// src/config.ts
+var path2 = __toESM(require("path"));
+var os2 = __toESM(require("os"));
+var PLUGIN_DIR_NAME = ".claude-trae-plugin";
+function getPluginDir() {
+  return path2.join(process.cwd(), PLUGIN_DIR_NAME);
+}
+function getCliCacheDirs() {
+  const homeDir = os2.homedir();
+  return [
+    path2.join(homeDir, "Library", "Caches", "trae-cli"),
+    path2.join(homeDir, "Library", "Caches", "trae_cli"),
+    path2.join(homeDir, ".cache", "trae-cli"),
+    path2.join(homeDir, ".cache", "trae_cli")
+  ];
+}
+function getTraeCliConfigPath() {
+  return path2.join(os2.homedir(), ".trae", "trae_cli.yaml");
+}
 
 // src/utils/session-reader.ts
 var fs = __toESM(require("fs"));
-var path = __toESM(require("path"));
-var os = __toESM(require("os"));
+var path3 = __toESM(require("path"));
 var SessionReader = class {
   sessionsDir;
   historyFile;
-  jsonOutputCache = /* @__PURE__ */ new Map();
   constructor() {
-    const homeDir = os.homedir();
-    const candidates = [
-      path.join(homeDir, "Library", "Caches", "trae-cli"),
-      path.join(homeDir, "Library", "Caches", "trae_cli"),
-      path.join(homeDir, ".cache", "trae-cli"),
-      path.join(homeDir, ".cache", "trae_cli")
-    ];
+    const candidates = getCliCacheDirs();
     const cacheDir = candidates.find((dir) => fs.existsSync(dir)) || candidates[0];
-    this.sessionsDir = path.join(cacheDir, "sessions");
-    this.historyFile = path.join(cacheDir, "history.jsonl");
+    this.sessionsDir = path3.join(cacheDir, "sessions");
+    this.historyFile = path3.join(cacheDir, "history.jsonl");
   }
   listSessions(options) {
     if (!fs.existsSync(this.sessionsDir)) return [];
     const sessions2 = fs.readdirSync(this.sessionsDir).filter((dir) => {
-      const sessionFile = path.join(this.sessionsDir, dir, "session.json");
+      const sessionFile = path3.join(this.sessionsDir, dir, "session.json");
       return fs.existsSync(sessionFile);
     }).map((dir) => {
       try {
         const content = fs.readFileSync(
-          path.join(this.sessionsDir, dir, "session.json"),
+          path3.join(this.sessionsDir, dir, "session.json"),
           "utf-8"
         );
         return JSON.parse(content);
@@ -78,7 +104,7 @@ var SessionReader = class {
     return filtered;
   }
   getSession(sessionId) {
-    const filePath = path.join(this.sessionsDir, sessionId, "session.json");
+    const filePath = path3.join(this.sessionsDir, sessionId, "session.json");
     if (!fs.existsSync(filePath)) return null;
     try {
       return JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -87,7 +113,7 @@ var SessionReader = class {
     }
   }
   getEvents(sessionId) {
-    const filePath = path.join(this.sessionsDir, sessionId, "events.jsonl");
+    const filePath = path3.join(this.sessionsDir, sessionId, "events.jsonl");
     if (!fs.existsSync(filePath)) return [];
     const lines = fs.readFileSync(filePath, "utf-8").split("\n");
     return lines.filter((line) => line.trim()).map((line) => {
@@ -218,7 +244,7 @@ var SessionReader = class {
     }).filter((h) => h !== null);
   }
   deleteSession(sessionId) {
-    const sessionDir = path.join(this.sessionsDir, sessionId);
+    const sessionDir = path3.join(this.sessionsDir, sessionId);
     if (!fs.existsSync(sessionDir)) return false;
     try {
       fs.rmSync(sessionDir, { recursive: true, force: true });
@@ -226,12 +252,6 @@ var SessionReader = class {
     } catch {
       return false;
     }
-  }
-  cacheJsonOutput(sessionId, output) {
-    this.jsonOutputCache.set(sessionId, output);
-  }
-  getJsonOutputSession(sessionId) {
-    return this.jsonOutputCache.get(sessionId) || null;
   }
   getSessionsDir() {
     return this.sessionsDir;
@@ -241,8 +261,6 @@ var SessionReader = class {
 // src/utils/auth-bridge.ts
 var import_child_process = require("child_process");
 var fs2 = __toESM(require("fs"));
-var path2 = __toESM(require("path"));
-var os2 = __toESM(require("os"));
 
 // node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
@@ -2835,11 +2853,7 @@ var AuthBridge = class {
   configPath;
   config = null;
   constructor() {
-    this.configPath = path2.join(
-      os2.homedir(),
-      ".trae",
-      "trae_cli.yaml"
-    );
+    this.configPath = getTraeCliConfigPath();
   }
   loadConfig() {
     if (this.config) return this.config;
@@ -2888,13 +2902,7 @@ var AuthBridge = class {
     return this.config?.plugins || [];
   }
   buildSpawnEnv() {
-    const env = { ...process.env };
-    const homeBin = path2.join(os2.homedir(), ".local", "bin");
-    const existingPath = env.PATH || "";
-    if (!existingPath.split(":").includes(homeBin)) {
-      env.PATH = `${homeBin}:${existingPath}`;
-    }
-    return env;
+    return buildSpawnEnv();
   }
 };
 
@@ -2994,8 +3002,8 @@ ${newPrompt}`;
 // src/utils/trae-executor.ts
 var import_child_process2 = require("child_process");
 var fs3 = __toESM(require("fs"));
-var path3 = __toESM(require("path"));
-var PLUGIN_DIR = path3.join(process.cwd(), ".claude-trae-plugin");
+var path4 = __toESM(require("path"));
+var PLUGIN_DIR = getPluginDir();
 function ensurePluginDir() {
   if (!fs3.existsSync(PLUGIN_DIR)) {
     fs3.mkdirSync(PLUGIN_DIR, { recursive: true });
@@ -3009,8 +3017,8 @@ var TraeExecutor = class {
   async execute(config) {
     ensurePluginDir();
     const taskId = Date.now().toString();
-    const logFile = path3.join(PLUGIN_DIR, `${taskId}.log`);
-    const pidFile = path3.join(PLUGIN_DIR, `${taskId}.pid`);
+    const logFile = path4.join(PLUGIN_DIR, `${taskId}.log`);
+    const pidFile = path4.join(PLUGIN_DIR, `${taskId}.pid`);
     const args = this.buildArgs(config);
     const env = this.authBridge.buildSpawnEnv();
     const startTime = Date.now();
@@ -3091,19 +3099,37 @@ var TraeExecutor = class {
         fs3.writeFileSync(pidFile, child.pid.toString());
       }
       let combinedOutput = "";
+      let settled = false;
       const append = (chunk) => {
         const text = chunk.toString();
         combinedOutput += text;
         fs3.appendFileSync(logFile, text);
       };
+      const settle = (result2) => {
+        if (settled) return;
+        settled = true;
+        if (fs3.existsSync(pidFile)) fs3.unlinkSync(pidFile);
+        resolve(result2);
+      };
+      const fail = (error) => {
+        if (settled) return;
+        settled = true;
+        if (fs3.existsSync(pidFile)) fs3.unlinkSync(pidFile);
+        child.kill("SIGKILL");
+        reject(error);
+      };
+      const TIMEOUT_MS = 5 * 60 * 1e3;
+      const timeout = setTimeout(() => {
+        fail(new Error(`\u4EFB\u52A1\u6267\u884C\u8D85\u65F6 (300s)`));
+      }, TIMEOUT_MS);
       child.stdout?.on("data", append);
       child.stderr?.on("data", append);
       child.on("error", (error) => {
-        if (fs3.existsSync(pidFile)) fs3.unlinkSync(pidFile);
-        reject(new Error(`\u6267\u884C\u5931\u8D25: ${error.message}`));
+        clearTimeout(timeout);
+        fail(new Error(`\u6267\u884C\u5931\u8D25: ${error.message}`));
       });
       child.on("close", (code) => {
-        if (fs3.existsSync(pidFile)) fs3.unlinkSync(pidFile);
+        clearTimeout(timeout);
         let jsonOutput = void 0;
         let sessionId;
         if (parseJson && combinedOutput.trim()) {
@@ -3113,7 +3139,7 @@ var TraeExecutor = class {
           } catch {
           }
         }
-        resolve({
+        settle({
           taskId,
           output: combinedOutput,
           exitCode: code,
@@ -3133,14 +3159,20 @@ var AcpClient = class {
   stderr;
   messageId = 0;
   pendingRequests = /* @__PURE__ */ new Map();
+  requestTimeouts = /* @__PURE__ */ new Map();
   initialized = false;
   sessionId = null;
   onUpdates = [];
   buffer = "";
+  REQUEST_TIMEOUT_MS = 6e4;
   constructor(stdin, stdout, stderr) {
     this.stdin = stdin;
     this.stdout = stdout;
     this.stderr = stderr;
+    const stderrChunks = [];
+    stderr.on("data", (chunk) => {
+      stderrChunks.push(chunk.toString());
+    });
     this.stdout.on("data", (chunk) => {
       this.buffer += chunk.toString();
       const lines = this.buffer.split("\n");
@@ -3222,6 +3254,11 @@ var AcpClient = class {
     }
     if (message.id !== void 0 && this.pendingRequests.has(message.id)) {
       const pending = this.pendingRequests.get(message.id);
+      const timeout = this.requestTimeouts.get(message.id);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.requestTimeouts.delete(message.id);
+      }
       this.pendingRequests.delete(message.id);
       if (message.error) {
         pending.reject(new Error(message.error.message || JSON.stringify(message.error)));
@@ -3243,10 +3280,18 @@ var AcpClient = class {
       params
     };
     return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        this.requestTimeouts.delete(id);
+        reject(new Error(`Request timeout: ${method} (${this.REQUEST_TIMEOUT_MS}ms)`));
+      }, this.REQUEST_TIMEOUT_MS);
       this.pendingRequests.set(id, { resolve, reject });
+      this.requestTimeouts.set(id, timeout);
       this.stdin.write(JSON.stringify(message) + "\n", (err) => {
         if (err) {
+          clearTimeout(timeout);
           this.pendingRequests.delete(id);
+          this.requestTimeouts.delete(id);
           reject(new Error(`Failed to write to stdin: ${err.message}`));
         }
       });
@@ -3319,15 +3364,7 @@ ${recentOutput}`;
         recordEvent("stdio:ready");
         resolve({ client });
       };
-      const env = { ...process.env };
-      const homeBin = require("path").join(require("os").homedir(), ".local", "bin");
-      const existingPath = env.PATH || "";
-      if (!existingPath.split(":").includes(homeBin)) {
-        env.PATH = `${homeBin}:${existingPath}`;
-      }
-      if (process.env.TRAECLI_PERSONAL_ACCESS_TOKEN) {
-        env.TRAECLI_PERSONAL_ACCESS_TOKEN = process.env.TRAECLI_PERSONAL_ACCESS_TOKEN;
-      }
+      const env = buildSpawnEnv();
       recordEvent("spawn:start", `cmd=trae-cli ${args.join(" ")}`);
       const child = (0, import_child_process3.spawn)("trae-cli", args, {
         stdio: ["pipe", "pipe", "pipe"],
@@ -3362,7 +3399,7 @@ ${recentOutput}`;
           }
           fail("ACP server startup timeout (15s)");
         }
-      }, 5e3);
+      }, 1e4);
     });
   }
   async stop() {
@@ -3397,22 +3434,13 @@ ${recentOutput}`;
 
 // src/utils.ts
 var execAsync = (0, import_util.promisify)(import_child_process4.exec);
-var PLUGIN_DIR2 = path4.join(process.cwd(), ".claude-trae-plugin");
-function getTraeCliEnv() {
-  const env = { ...process.env };
-  const homeBin = path4.join(os3.homedir(), ".local", "bin");
-  const existingPath = env.PATH || "";
-  if (!existingPath.split(":").includes(homeBin)) {
-    env.PATH = `${homeBin}:${existingPath}`;
-  }
-  return env;
-}
+var PLUGIN_DIR2 = getPluginDir();
 function isSafeGitRef(ref) {
   return /^[A-Za-z0-9._\/-]+$/.test(ref);
 }
 async function isTraeCliInstalled() {
   try {
-    const env = getTraeCliEnv();
+    const env = buildSpawnEnv();
     await execAsync("which trae-cli", { env });
     return true;
   } catch {
@@ -3432,67 +3460,6 @@ async function getGitDiff(baseBranch = "main") {
       return "\u65E0\u6CD5\u83B7\u53D6 git diff\uFF0C\u53EF\u80FD\u4E0D\u5728 git \u4ED3\u5E93\u4E2D\u3002";
     }
   }
-}
-function ensurePluginDir2() {
-  if (!fs4.existsSync(PLUGIN_DIR2)) {
-    fs4.mkdirSync(PLUGIN_DIR2, { recursive: true });
-  }
-}
-async function runTraeCli(prompt, background = false) {
-  ensurePluginDir2();
-  const env = getTraeCliEnv();
-  const timestamp2 = Date.now();
-  const logFile = path4.join(PLUGIN_DIR2, `${timestamp2}.log`);
-  const pidFile = path4.join(PLUGIN_DIR2, `${timestamp2}.pid`);
-  if (background) {
-    const out = fs4.openSync(logFile, "a");
-    const err = fs4.openSync(logFile, "a");
-    const child = (0, import_child_process4.spawn)("trae-cli", ["--print", prompt], {
-      detached: true,
-      stdio: ["ignore", out, err],
-      env
-    });
-    child.unref();
-    if (child.pid) {
-      fs4.writeFileSync(pidFile, child.pid.toString());
-    }
-    return `\u4EFB\u52A1\u5DF2\u5728\u540E\u53F0\u542F\u52A8 (ID: ${timestamp2})\u3002
-\u4F7F\u7528 /trae:status \u67E5\u770B\u72B6\u6001\uFF0C\u6216\u67E5\u770B\u65E5\u5FD7\u6587\u4EF6\uFF1A${logFile}`;
-  }
-  return new Promise((resolve, reject) => {
-    const child = (0, import_child_process4.spawn)("trae-cli", ["--print", prompt], {
-      stdio: ["ignore", "pipe", "pipe"],
-      env
-    });
-    if (child.pid) {
-      fs4.writeFileSync(pidFile, child.pid.toString());
-    }
-    let combinedOutput = "";
-    const append = (chunk, isErr = false) => {
-      const text = chunk.toString();
-      combinedOutput += text;
-      fs4.appendFileSync(logFile, text);
-      if (isErr) {
-        process.stderr.write(chunk);
-      } else {
-        process.stdout.write(chunk);
-      }
-    };
-    child.stdout?.on("data", (chunk) => append(chunk, false));
-    child.stderr?.on("data", (chunk) => append(chunk, true));
-    child.on("error", (error) => {
-      if (fs4.existsSync(pidFile)) fs4.unlinkSync(pidFile);
-      reject(new Error(`\u6267\u884C\u5931\u8D25: ${error.message}`));
-    });
-    child.on("close", (code) => {
-      if (fs4.existsSync(pidFile)) fs4.unlinkSync(pidFile);
-      if (code === 0) {
-        resolve(combinedOutput);
-      } else {
-        reject(new Error(`\u6267\u884C\u5931\u8D25: trae-cli \u9000\u51FA\u7801 ${code}\u3002\u65E5\u5FD7: ${logFile}`));
-      }
-    });
-  });
 }
 
 // src/commands/setup.ts
@@ -3746,7 +3713,8 @@ ${diff}
       console.log(`\u4F7F\u7528 /trae:run "\u7EE7\u7EED\u5BA1\u67E5" --resume ${result2.sessionId} \u6062\u590D\u8BE5\u4F1A\u8BDD`);
     }
   } catch (error) {
-    console.error("\u5BA1\u67E5\u6267\u884C\u51FA\u9519:", error.message);
+    console.error("\u5BA1\u67E5\u6267\u884C\u51FA\u9519:", error instanceof Error ? error.message : String(error));
+    process.exit(1);
   }
 }
 
@@ -3764,11 +3732,13 @@ async function runTask(args) {
       config.jsonOutput = true;
     } else if (arg === "--yolo" || arg === "-y") {
       config.yolo = true;
-    } else if (arg === "--resume" && args[i + 1] && !args[i + 1].startsWith("-")) {
-      config.resume = args[i + 1];
-      i++;
-    } else if (arg === "--resume" || arg === "--resume=AUTO") {
-      config.resume = "AUTO";
+    } else if (arg === "--resume") {
+      if (args[i + 1] && !args[i + 1].startsWith("-")) {
+        config.resume = args[i + 1];
+        i++;
+      } else {
+        config.resume = "AUTO";
+      }
     } else if (arg.startsWith("--resume=")) {
       config.resume = arg.substring("--resume=".length);
     } else if (arg === "--session-id" && args[i + 1]) {
@@ -3859,7 +3829,7 @@ async function runTask(args) {
 // src/commands/jobs.ts
 var fs5 = __toESM(require("fs"));
 var path5 = __toESM(require("path"));
-var PLUGIN_DIR3 = path5.join(process.cwd(), ".claude-trae-plugin");
+var PLUGIN_DIR3 = getPluginDir();
 function getJobs() {
   if (!fs5.existsSync(PLUGIN_DIR3)) {
     return [];
@@ -3986,7 +3956,7 @@ async function handleHook(args) {
 var import_child_process7 = require("child_process");
 var import_fs = require("fs");
 var import_path2 = require("path");
-var PLUGIN_DIR4 = ".claude-trae-plugin";
+var PLUGIN_DIR4 = getPluginDir();
 function getLastError() {
   const pluginDir = (0, import_path2.join)(process.cwd(), PLUGIN_DIR4);
   if (!(0, import_fs.existsSync)(pluginDir)) return null;
@@ -4011,7 +3981,7 @@ function getGitStatus() {
 }
 function getRecentChanges() {
   try {
-    return (0, import_child_process7.execSync)("git diff --stat -10", { encoding: "utf-8" }).trim();
+    return (0, import_child_process7.execSync)("git log --stat -n 10 --oneline", { encoding: "utf-8" }).trim();
   } catch {
     return "";
   }
@@ -4024,30 +3994,30 @@ async function rescue(args) {
       i++;
     }
   }
-  console.log("\u{1F527} [Trae Plugin] Rescue Mode");
+  console.log("Rescue Mode");
   console.log("\u2500".repeat(40));
   const lastError = getLastError();
   const gitStatus = getGitStatus();
   const recentChanges = getRecentChanges();
-  console.log("\u{1F4CA} \u6536\u96C6\u6545\u969C\u4FE1\u606F...");
+  console.log("\u6536\u96C6\u6545\u969C\u4FE1\u606F...");
   if (lastError) {
-    console.log("\n\u{1F4DD} \u6700\u8FD1\u9519\u8BEF:");
+    console.log("\n\u6700\u8FD1\u9519\u8BEF:");
     const errorLines = lastError.split("\n").slice(-10);
     console.log(errorLines.join("\n"));
   }
   if (gitStatus) {
-    console.log("\n\u{1F4C1} \u5F53\u524D\u53D8\u66F4:");
+    console.log("\n\u5F53\u524D\u53D8\u66F4:");
     console.log(gitStatus);
   }
   if (recentChanges) {
-    console.log("\n\u{1F4C8} \u6700\u8FD1\u63D0\u4EA4:");
+    console.log("\n\u6700\u8FD1\u63D0\u4EA4:");
     console.log(recentChanges);
   }
   if (context) {
-    console.log("\n\u{1F4CB} \u7528\u6237\u63D0\u4F9B\u4E0A\u4E0B\u6587:");
+    console.log("\n\u7528\u6237\u4E0A\u4E0B\u6587:");
     console.log(context);
   }
-  console.log("\n\u{1F50D} \u6B63\u5728\u5206\u6790\u95EE\u9898...");
+  console.log("\n\u6B63\u5728\u5206\u6790\u95EE\u9898...");
   const diagnosisPrompt = `\u4F5C\u4E3A Trae Agent \u7684\u6545\u969C\u8BCA\u65AD\u52A9\u624B\uFF0C\u8BF7\u5206\u6790\u4EE5\u4E0B\u5931\u8D25\u4E0A\u4E0B\u6587\u5E76\u63D0\u4F9B\u6062\u590D\u5EFA\u8BAE\uFF1A
 
 ${lastError ? `\u9519\u8BEF\u8F93\u51FA:
@@ -4066,11 +4036,12 @@ ${context}
 3. \u9884\u9632\u5EFA\u8BAE: \u5982\u4F55\u907F\u514D\u7C7B\u4F3C\u95EE\u9898\uFF1F`;
   try {
     console.log("\u2500".repeat(40));
-    const result2 = await runTraeCli(diagnosisPrompt, false);
-    console.log("\n\u{1F4A1} \u8BCA\u65AD\u7ED3\u679C:");
-    console.log(result2);
+    const executor3 = new TraeExecutor();
+    const result2 = await executor3.execute({ prompt: diagnosisPrompt });
+    console.log("\n\u8BCA\u65AD\u7ED3\u679C:");
+    console.log(result2.output);
   } catch (error) {
-    console.error("\u274C \u8BCA\u65AD\u5931\u8D25:", error.message);
+    console.error("\u8BCA\u65AD\u5931\u8D25:", error instanceof Error ? error.message : String(error));
   }
   console.log("\u2500".repeat(40));
 }
@@ -4543,6 +4514,14 @@ async function streamViaAcp(args) {
   }
 }
 
+// src/types/errors.ts
+function isError(error) {
+  return error instanceof Error;
+}
+function getErrorMessage(error) {
+  return isError(error) ? error.message : String(error);
+}
+
 // src/index.ts
 async function main() {
   const args = process.argv.slice(2);
@@ -4594,7 +4573,7 @@ async function main() {
         process.exit(1);
     }
   } catch (error) {
-    console.error("\u6267\u884C\u5931\u8D25:", error.message);
+    console.error("\u6267\u884C\u5931\u8D25:", getErrorMessage(error));
     process.exit(1);
   }
 }

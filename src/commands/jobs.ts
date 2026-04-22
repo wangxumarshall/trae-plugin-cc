@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { getPluginDir } from '../config';
 
-const PLUGIN_DIR = path.join(process.cwd(), '.claude-trae-plugin');
+const PLUGIN_DIR = getPluginDir();
 
 export function getJobs() {
     if (!fs.existsSync(PLUGIN_DIR)) {

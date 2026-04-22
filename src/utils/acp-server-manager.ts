@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { AcpClient } from '../utils/acp-client';
+import { buildSpawnEnv } from './env';
 
 type StartupEvent = {
   at: string;
@@ -71,7 +72,7 @@ export class AcpServerManager {
         reject(new Error(`${message}${buildDiagnostic()}`));
       };
 
-    const succeed = () => {
+      const succeed = () => {
         if (settled) return;
         settled = true;
         const client = new AcpClient(child.stdin!, child.stdout!, child.stderr!);
@@ -81,15 +82,7 @@ export class AcpServerManager {
         resolve({ client });
       };
 
-      const env: NodeJS.ProcessEnv = { ...process.env };
-      const homeBin = require('path').join(require('os').homedir(), '.local', 'bin');
-      const existingPath = env.PATH || '';
-      if (!existingPath.split(':').includes(homeBin)) {
-        env.PATH = `${homeBin}:${existingPath}`;
-      }
-      if (process.env.TRAECLI_PERSONAL_ACCESS_TOKEN) {
-        env.TRAECLI_PERSONAL_ACCESS_TOKEN = process.env.TRAECLI_PERSONAL_ACCESS_TOKEN;
-      }
+      const env = buildSpawnEnv();
 
       recordEvent('spawn:start', `cmd=trae-cli ${args.join(' ')}`);
 
@@ -100,7 +93,7 @@ export class AcpServerManager {
         env,
       });
 
-recordEvent('spawn:created', `pid=${child.pid || 'unknown'}`);
+      recordEvent('spawn:created', `pid=${child.pid || 'unknown'}`);
 
       child.stdout?.on('data', (chunk: Buffer) => {
         rememberOutput('stdout', chunk.toString());
@@ -123,8 +116,7 @@ recordEvent('spawn:created', `pid=${child.pid || 'unknown'}`);
         }
       });
 
-      // 等待进程启动
-      // trae-cli 认证成功后会通过 stderr 输出日志
+      // 等待进程启动，认证过程可能需要较长时间
       setTimeout(() => {
         if (!started && !settled) {
           const alive = child.exitCode === null;
@@ -138,7 +130,7 @@ recordEvent('spawn:created', `pid=${child.pid || 'unknown'}`);
 
           fail('ACP server startup timeout (15s)');
         }
-      }, 5000);
+      }, 10000);
     });
   }
 

@@ -1,9 +1,10 @@
 import { execSync } from 'child_process';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { runTraeCli } from '../utils';
+import { TraeExecutor } from '../utils/trae-executor';
+import { getPluginDir } from '../config';
 
-const PLUGIN_DIR = '.claude-trae-plugin';
+const PLUGIN_DIR = getPluginDir();
 
 function getLastError(): string | null {
   const pluginDir = join(process.cwd(), PLUGIN_DIR);
@@ -36,8 +37,7 @@ function getGitStatus(): string {
 
 function getRecentChanges(): string {
   try {
-    // Fixed command, no user input - safe
-    return execSync('git diff --stat -10', { encoding: 'utf-8' }).trim();
+    return execSync('git log --stat -n 10 --oneline', { encoding: 'utf-8' }).trim();
   } catch {
     return '';
   }
@@ -53,37 +53,37 @@ export async function rescue(args: string[]) {
     }
   }
 
-  console.log('🔧 [Trae Plugin] Rescue Mode');
+  console.log('Rescue Mode');
   console.log('─'.repeat(40));
 
   const lastError = getLastError();
   const gitStatus = getGitStatus();
   const recentChanges = getRecentChanges();
 
-  console.log('📊 收集故障信息...');
+  console.log('收集故障信息...');
 
   if (lastError) {
-    console.log('\n📝 最近错误:');
+    console.log('\n最近错误:');
     const errorLines = lastError.split('\n').slice(-10);
     console.log(errorLines.join('\n'));
   }
 
   if (gitStatus) {
-    console.log('\n📁 当前变更:');
+    console.log('\n当前变更:');
     console.log(gitStatus);
   }
 
   if (recentChanges) {
-    console.log('\n📈 最近提交:');
+    console.log('\n最近提交:');
     console.log(recentChanges);
   }
 
   if (context) {
-    console.log('\n📋 用户提供上下文:');
+    console.log('\n用户上下文:');
     console.log(context);
   }
 
-  console.log('\n🔍 正在分析问题...');
+  console.log('\n正在分析问题...');
 
   const diagnosisPrompt = `作为 Trae Agent 的故障诊断助手，请分析以下失败上下文并提供恢复建议：
 
@@ -98,11 +98,12 @@ ${context ? `附加上下文:\n${context}\n` : ''}
 
   try {
     console.log('─'.repeat(40));
-    const result = await runTraeCli(diagnosisPrompt, false);
-    console.log('\n💡 诊断结果:');
-    console.log(result);
-  } catch (error: any) {
-    console.error('❌ 诊断失败:', error.message);
+    const executor = new TraeExecutor();
+    const result = await executor.execute({ prompt: diagnosisPrompt });
+    console.log('\n诊断结果:');
+    console.log(result.output);
+  } catch (error: unknown) {
+    console.error('诊断失败:', error instanceof Error ? error.message : String(error));
   }
 
   console.log('─'.repeat(40));

@@ -1,8 +1,8 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import * as yaml from 'js-yaml';
+import { buildSpawnEnv } from './env';
+import { getTraeCliConfigPath } from '../config';
 
 interface TraeCliConfig {
   model?: { name: string };
@@ -24,11 +24,7 @@ export class AuthBridge {
   private config: TraeCliConfig | null = null;
 
   constructor() {
-    this.configPath = path.join(
-      os.homedir(),
-      '.trae',
-      'trae_cli.yaml'
-    );
+    this.configPath = getTraeCliConfigPath();
   }
 
   loadConfig(): TraeCliConfig | null {
@@ -87,12 +83,6 @@ export class AuthBridge {
   }
 
   buildSpawnEnv(): NodeJS.ProcessEnv {
-    const env = { ...process.env };
-    const homeBin = path.join(os.homedir(), '.local', 'bin');
-    const existingPath = env.PATH || '';
-    if (!existingPath.split(':').includes(homeBin)) {
-      env.PATH = `${homeBin}:${existingPath}`;
-    }
-    return env;
+    return buildSpawnEnv();
   }
 }

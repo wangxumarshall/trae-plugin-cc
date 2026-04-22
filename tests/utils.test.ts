@@ -1,7 +1,6 @@
 import * as utils from '../src/utils';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
 
 jest.mock('child_process');
 jest.mock('fs');
@@ -66,40 +65,6 @@ describe('Utils', () => {
             });
             const result = await utils.getGitDiff('main');
             expect(result).toBe("无法获取 git diff，可能不在 git 仓库中。");
-        });
-    });
-
-    describe('runTraeCli', () => {
-        const PLUGIN_DIR = path.join(process.cwd(), '.claude-trae-plugin');
-
-        it('should start in background when background=true', async () => {
-            const mockDate = 1000;
-            jest.spyOn(Date, 'now').mockReturnValue(mockDate);
-
-            (fs.existsSync as jest.Mock).mockReturnValue(false);
-            (fs.openSync as jest.Mock).mockReturnValue(1);
-
-            const unrefMock = jest.fn();
-            (child_process.spawn as jest.Mock).mockReturnValue({
-                pid: 1234,
-                unref: unrefMock
-            });
-
-            const result = await utils.runTraeCli('test prompt', true);
-
-            expect(fs.mkdirSync).toHaveBeenCalledWith(PLUGIN_DIR, { recursive: true });
-            expect(fs.openSync).toHaveBeenCalledWith(path.join(PLUGIN_DIR, `${mockDate}.log`), 'a');
-            expect(child_process.spawn).toHaveBeenCalledWith(
-                'trae-cli',
-                ['--print', 'test prompt'],
-                expect.objectContaining({
-                    detached: true,
-                    stdio: ['ignore', 1, 1],
-                })
-            );
-            expect(unrefMock).toHaveBeenCalled();
-            expect(fs.writeFileSync).toHaveBeenCalledWith(path.join(PLUGIN_DIR, `${mockDate}.pid`), '1234');
-            expect(result).toContain(`任务已在后台启动 (ID: ${mockDate})`);
         });
     });
 

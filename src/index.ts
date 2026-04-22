@@ -6,6 +6,7 @@ import { handleHook } from './commands/hooks';
 import { rescue } from './commands/rescue';
 import { sessions } from './commands/sessions';
 import { acp } from './commands/acp';
+import { getErrorMessage } from './types/errors';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -58,8 +59,8 @@ async function main() {
         console.log('可用命令: setup, review, adversarial-review, run, status, result, cancel, sessions, acp');
         process.exit(1);
     }
-  } catch (error: any) {
-    console.error('执行失败:', error.message);
+  } catch (error: unknown) {
+    console.error('执行失败:', getErrorMessage(error));
     process.exit(1);
   }
 }

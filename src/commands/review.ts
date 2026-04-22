@@ -77,7 +77,8 @@ export async function review(args: string[], isAdversarial: boolean = false) {
             console.log(`\n会话 ID: ${result.sessionId}`);
             console.log(`使用 /trae:run "继续审查" --resume ${result.sessionId} 恢复该会话`);
         }
-    } catch (error: any) {
-        console.error('审查执行出错:', error.message);
+    } catch (error: unknown) {
+        console.error('审查执行出错:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
     }
 }
