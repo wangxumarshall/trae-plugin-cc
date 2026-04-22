@@ -13,7 +13,7 @@
     },
     "time": {
       "created": 1776835326102,
-      "updated": 1776838062811
+      "updated": 1776838080400
     }
   },
   "messages": [
@@ -2381,19 +2381,22 @@
         },
         "cost": 0,
         "tokens": {
-          "input": 0,
-          "output": 0,
-          "reasoning": 0,
+          "total": 76693,
+          "input": 76218,
+          "output": 189,
+          "reasoning": 286,
           "cache": {
-            "read": 0,
-            "write": 0
+            "write": 0,
+            "read": 0
           }
         },
         "modelID": "Qwen3.6-Plus",
         "providerID": "volcengine-key2",
         "time": {
-          "created": 1776838062717
+          "created": 1776838062717,
+          "completed": 1776838076806
         },
+        "finish": "tool-calls",
         "id": "msg_db3cd327d00225Ua2mdJ1B65uJ",
         "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV"
       },
@@ -2421,22 +2424,226 @@
           "tool": "bash",
           "callID": "call_7b54263109b94f589b231ac4",
           "state": {
-            "metadata": {
-              "output": "",
-              "description": "Commit all staged changes"
-            },
-            "status": "running",
+            "status": "completed",
             "input": {
               "command": "git commit -m \"fix: cross-platform cache dir, arg parsing order, and session management enhancements\n\n- src/utils/session-reader.ts: support multiple cache dir candidates\n  (macOS/Linux, 'trae-cli'/'trae_cli' naming), fixing hardcoded\n  ~/Library/Caches/trae_cli path\n- src/commands/run.ts: fix --resume/--worktree arg parsing order so\n  --resume <value> is consumed before bare --resume/--resume=AUTO\n- src/commands/sessions.ts: add delete-smoke subcommand for bulk cleanup\n  of test sessions\n- README.md: expand documentation with feature tables, usage examples,\n  and core utility class documentation\"",
               "description": "Commit all staged changes"
             },
+            "output": "[main 1d05b06] fix: cross-platform cache dir, arg parsing order, and session management enhancements\n Committer: ubuntu <ubuntu@ubuntudexuniji.local>\nYour name and email address were configured automatically based\non your username and hostname. Please check that they are accurate.\nYou can suppress this message by setting them explicitly. Run the\nfollowing command and follow the instructions in your editor to edit\nyour configuration file:\n\n    git config --global --edit\n\nAfter doing this, you may fix the identity used for this commit with:\n\n    git commit --amend --reset-author\n\n 5 files changed, 515 insertions(+), 47 deletions(-)\n",
+            "metadata": {
+              "output": "[main 1d05b06] fix: cross-platform cache dir, arg parsing order, and session management enhancements\n Committer: ubuntu <ubuntu@ubuntudexuniji.local>\nYour name and email address were configured automatically based\non your username and hostname. Please check that they are accurate.\nYou can suppress this message by setting them explicitly. Run the\nfollowing command and follow the instructions in your editor to edit\nyour configuration file:\n\n    git config --global --edit\n\nAfter doing this, you may fix the identity used for this commit with:\n\n    git commit --amend --reset-author\n\n 5 files changed, 515 insertions(+), 47 deletions(-)\n",
+              "exit": 0,
+              "description": "Commit all staged changes",
+              "truncated": false
+            },
+            "title": "Commit all staged changes",
             "time": {
-              "start": 1776838072676
+              "start": 1776838076719,
+              "end": 1776838076725
             }
           },
           "id": "prt_db3cd4cef001CiAcIQGFgsxmPM",
           "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
           "messageID": "msg_db3cd327d00225Ua2mdJ1B65uJ"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "75d505bca9337a909a52abbf2000f66d33c1e0ab",
+          "type": "step-finish",
+          "tokens": {
+            "total": 76693,
+            "input": 76218,
+            "output": 189,
+            "reasoning": 286,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db3cd6938001Z4976tURi8jGMM",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd327d00225Ua2mdJ1B65uJ"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db3cccae8001V1gZWF3aomeyKw",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 76915,
+          "input": 76858,
+          "output": 46,
+          "reasoning": 11,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key2",
+        "time": {
+          "created": 1776838076810,
+          "completed": 1776838080293
+        },
+        "finish": "tool-calls",
+        "id": "msg_db3cd698a002JE96MtqV595hNt",
+        "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV"
+      },
+      "parts": [
+        {
+          "snapshot": "75d505bca9337a909a52abbf2000f66d33c1e0ab",
+          "type": "step-start",
+          "id": "prt_db3cd731b001FvIPBzkJyOcIa7",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd698a002JE96MtqV595hNt"
+        },
+        {
+          "type": "reasoning",
+          "text": "The commit was successful. Let me verify the state.",
+          "time": {
+            "start": 1776838079261,
+            "end": 1776838079600
+          },
+          "id": "prt_db3cd731c002fbvMgmcG8YNV5Q",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd698a002JE96MtqV595hNt"
+        },
+        {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_ae202c28119043e49dfaba69",
+          "state": {
+            "status": "completed",
+            "input": {
+              "command": "git status",
+              "description": "Verify clean working tree"
+            },
+            "output": "On branch main\nYour branch is ahead of 'origin/main' by 1 commit.\n  (use \"git push\" to publish your local commits)\n\nUntracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\t.codex/\n\t.entire/\n\t.opencode/\n\nnothing added to commit but untracked files present (use \"git add\" to track)\n",
+            "metadata": {
+              "output": "On branch main\nYour branch is ahead of 'origin/main' by 1 commit.\n  (use \"git push\" to publish your local commits)\n\nUntracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\t.codex/\n\t.entire/\n\t.opencode/\n\nnothing added to commit but untracked files present (use \"git add\" to track)\n",
+              "exit": 0,
+              "description": "Verify clean working tree",
+              "truncated": false
+            },
+            "title": "Verify clean working tree",
+            "time": {
+              "start": 1776838080200,
+              "end": 1776838080201
+            }
+          },
+          "id": "prt_db3cd7471002direJNFszDP9s5",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd698a002JE96MtqV595hNt"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "75d505bca9337a909a52abbf2000f66d33c1e0ab",
+          "type": "step-finish",
+          "tokens": {
+            "total": 76915,
+            "input": 76858,
+            "output": 46,
+            "reasoning": 11,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db3cd76ca001FNHTm3BoTBDfJS",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd698a002JE96MtqV595hNt"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db3cccae8001V1gZWF3aomeyKw",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 77253,
+          "input": 77019,
+          "output": 220,
+          "reasoning": 14,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key2",
+        "time": {
+          "created": 1776838080296,
+          "completed": 1776838088734
+        },
+        "finish": "stop",
+        "id": "msg_db3cd7728002nCHTjtcpKyMklq",
+        "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV"
+      },
+      "parts": [
+        {
+          "snapshot": "75d505bca9337a909a52abbf2000f66d33c1e0ab",
+          "type": "step-start",
+          "id": "prt_db3cd8730001BLYwkS8LhCPUjO",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd7728002nCHTjtcpKyMklq"
+        },
+        {
+          "type": "reasoning",
+          "text": "Done. Let me summarize what was in the commit for the user.\n",
+          "time": {
+            "start": 1776838084401,
+            "end": 1776838084702
+          },
+          "id": "prt_db3cd8731001epD1DmHfLIcQ4C",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd7728002nCHTjtcpKyMklq"
+        },
+        {
+          "type": "text",
+          "text": "已提交，commit `1d05b06`。本次包含 5 个文件的变更：\n\n| 文件 | 变更内容 |\n|------|---------|\n| `src/utils/session-reader.ts` | 修复平台硬编码 — 支持 4 个缓存目录候选路径（macOS/Linux、trae-cli/trae_cli 两种命名） |\n| `src/commands/run.ts` | 修复 `--resume`/`--worktree` 参数解析顺序 — 确保 `--resume <value>` 在 bare `--resume` 之前被消费 |\n| `src/commands/sessions.ts` | 新增 `delete-smoke` 子命令 — 批量清理标题/ID 包含 \"smoke\" 的测试会话 |\n| `README.md` | 大幅扩充文档 — 功能对照表 + 8 个使用示例 + 核心功能详解 + 工具类文档 |\n| `dist/index.js` | 编译产物自动更新 |",
+          "time": {
+            "start": 1776838084702,
+            "end": 1776838088643
+          },
+          "id": "prt_db3cd885e0027PlMaYZNpA56ge",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd7728002nCHTjtcpKyMklq"
+        },
+        {
+          "reason": "stop",
+          "snapshot": "75d505bca9337a909a52abbf2000f66d33c1e0ab",
+          "type": "step-finish",
+          "tokens": {
+            "total": 77253,
+            "input": 77019,
+            "output": 220,
+            "reasoning": 14,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db3cd97c4001JvmJsRNu3gYfs3",
+          "sessionID": "ses_24c5c8f6cffewxw3j2HN1joKjV",
+          "messageID": "msg_db3cd7728002nCHTjtcpKyMklq"
         }
       ]
     }
