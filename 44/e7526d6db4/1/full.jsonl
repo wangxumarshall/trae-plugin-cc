@@ -7,13 +7,13 @@
     "title": "readme.md全面重构与逻辑优化",
     "version": "1.14.20",
     "summary": {
-      "additions": 2637,
+      "additions": 3360,
       "deletions": 689,
-      "files": 35
+      "files": 36
     },
     "time": {
       "created": 1776860930271,
-      "updated": 1776864514219
+      "updated": 1776864700724
     }
   },
   "messages": [
@@ -7121,6 +7121,13 @@
               "status": "modified"
             },
             {
+              "file": "docs/platform-architectures.md",
+              "patch": "Index: docs/platform-architectures.md\n===================================================================\n--- docs/platform-architectures.md\t\n+++ docs/platform-architectures.md\t\n@@ -0,0 +1,723 @@\n+# Claude Code 与 OpenCode 插件架构差异深度解析\n+\n+## 目录\n+\n+1. [两大平台的定位差异](#1-两大平台的定位差异)\n+2. [插件发现与注册机制](#2-插件发现与注册机制)\n+3. [命令系统：Slash Commands vs Bun Tools](#3-命令系统slash-commands-vs-bun-tools)\n+4. [工具协议：MCP (JSON Schema) vs Bun Tool (Zod + TypeScript)](#4-工具协议mcp-json-schema-vs-bun-tool-zod--typescript)\n+5. [生命周期钩子：hooks.json vs Plugin Event System](#5-生命周期钩子hooksjson-vs-plugin-event-system)\n+6. [命令文档：用户帮助 vs Agent 上下文](#6-命令文档用户帮助-vs-agent-上下文)\n+7. [安全模型：allowed-tools vs 无显式权限声明](#7-安全模型allowed-tools-vs-无显式权限声明)\n+8. [运行时与进程模型](#8-运行时与进程模型)\n+9. [本项目的统一架构设计](#9-本项目的统一架构设计)\n+10. [完整对比矩阵](#10-完整对比矩阵)\n+\n+---\n+\n+## 1. 两大平台的定位差异\n+\n+### Claude Code：AI 辅助编程终端\n+\n+Claude Code 是 Anthropic 的命令行 AI 编程工具，采用 **插件 + Skill + Agent + Hook + MCP** 多维扩展体系。其核心特征：\n+\n+- **用户交互界面是 TUI**（终端用户界面），用户通过 `/` 开头的斜杠命令触发功能\n+- **AI 自主调用**通过 MCP（Model Context Protocol）协议实现\n+- **Skill 系统**为 AI 提供可自动匹配的上下文注入能力\n+- 所有扩展组件通过 **文件发现**（约定目录结构）自动加载\n+\n+### OpenCode：AI 编程框架\n+\n+OpenCode 是基于 Bun 运行的 AI 编程框架，采用 **Plugin（TypeScript 模块）** 扩展体系。其核心特征：\n+\n+- **Plugin 是纯 TypeScript 模块**，`export` 标准接口（Plugin、Tool、Hook）\n+- 通过 `@opencode-ai/plugin` SDK 提供类型安全的工厂函数（`tool()`）\n+- **Plugin 工厂函数本质是类型包装器** — `tool()` 内部直接返回输入对象（passthrough）\n+- **所有能力统一在一个 Plugin 模块**中（tools、hooks、auth、provider、chat.* 等）\n+- 工具发现通过 **Bun 自动扫描** `.opencode/tools/*.ts` 的 `export default tool(...)`\n+\n+---\n+\n+## 2. 插件发现与注册机制\n+\n+### Claude Code：声明式文件发现\n+\n+```\n+my-plugin/\n+├── .claude-plugin/plugin.json    ← 插件清单（必需）\n+├── commands/*.md                 ← Slash Commands（文件即命令）\n+├── .mcp.json                     ← MCP 工具注册\n+├── hooks/hooks.json              ← 生命周期钩子\n+├── skills/                       ← AI Skills\n+├── agents/                       ← 自定义 Agent\n+├── .lsp.json                     ← LSP 服务器配置\n+├── monitors/monitors.json        ← 后台监控\n+├── bin/                          ← PATH 扩展\n+└── settings.json                 ← 默认设置\n+```\n+\n+**核心机制**：\n+- `.claude-plugin/plugin.json` 定义插件身份（name、description、version）— 仅此文件在 `.claude-plugin/` 下\n+- 所有其他目录位于 **插件根级别**\n+- Claude Code 扫描目录结构，根据文件名和目录约定自动注册\n+- 技能名被 `name` 字段命名空间化（如 `/my-plugin:hello`）\n+- Marketplace 安装时以 git URL 或本地路径为源\n+\n+**plugin.json 格式**：\n+```json\n+{\n+  \"name\": \"trae\",\n+  \"description\": \"在 Claude Code 中直接调用字节 Trae Agent (trae-cli) 做代码审查或任务委托\",\n+  \"version\": \"1.0.0\",\n+  \"author\": { \"name\": \"wangxumarshall\" },\n+  \"repository\": \"https://github.com/wangxumarshall/trae-plugin-cc\"\n+}\n+```\n+\n+### OpenCode：命令式 TypeScript 模块\n+\n+```\n+.opencode/\n+├── tools/trae-*.ts           ← Bun 工具 (export default tool({...}))\n+├── commands/trae-*.md        ← 命令描述 (YAML frontmatter + Markdown)\n+├── plugins/trae-hooks.ts    ← 生命周期插件 (export const X: Plugin)\n+└── package.json              ← 依赖 (@opencode-ai/plugin)\n+```\n+\n+**核心机制**：\n+- 无独立 `plugin.json` — 插件身份由 TypeScript 模块的 `export` 名称决定\n+- `@opencode-ai/plugin` SDK 提供类型工厂：\n+\n+```typescript\n+// @opencode-ai/plugin/dist/tool.d.ts\n+export type ToolResult = string | {\n+    output: string;\n+    metadata?: Record<string, any>;\n+};\n+\n+export declare function tool<Args extends z.ZodRawShape>(input: {\n+    description: string;\n+    args: Args;\n+    execute(args: z.infer<z.ZodObject<Args>>, context: ToolContext): Promise<ToolResult>;\n+}): { description: string; args: Args; execute(...): Promise<ToolResult> };\n+```\n+\n+- `tool()` 内部是 **纯 passthrough**（直接返回输入对象），真正的注册由 OpenCode 主机完成\n+- 框架扫描 `.opencode/tools/*.ts` 的默认导出，根据文件名派生工具名（`trae-run.ts` → `trae-run`）\n+\n+**Plugin 类型**：\n+```typescript\n+export type PluginInput = {\n+    client: ReturnType<typeof createOpencodeClient>;\n+    project: Project;\n+    directory: string;\n+    worktree: string;\n+    experimental_workspace: { register(type: string, adaptor: WorkspaceAdaptor): void };\n+    serverUrl: URL;\n+    $: BunShell;\n+};\n+\n+export type Plugin = (input: PluginInput, options?: PluginOptions) => Promise<Hooks>;\n+\n+export interface Hooks {\n+    event?: (input: { event: Event }) => Promise<void>;\n+    config?: (input: Config) => Promise<void>;\n+    tool?: { [key: string]: ToolDefinition };\n+    auth?: AuthHook;\n+    provider?: ProviderHook;\n+    \"chat.message\"?: (...) => Promise<void>;\n+    \"chat.params\"?: (...) => Promise<void>;\n+    \"tool.execute.before\"?: (...) => Promise<void>;\n+    \"tool.execute.after\"?: (...) => Promise<void>;\n+    \"permission.ask\"?: (...) => Promise<void>;\n+    // ... 20+ hook types\n+}\n+```\n+\n+**关键差异**：\n+\n+| 维度 | Claude Code | OpenCode |\n+|------|-------------|----------|\n+| 插件入口 | `.claude-plugin/plugin.json`（声明式） | TypeScript 模块的 `export const X: Plugin`（命令式） |\n+| 发现机制 | 扫描目录结构 → 约定命名 → 自动注册 | 扫描 `tools/*.ts` 默认导出 → 文件名派生工具名 |\n+| 命名空间 | `plugin.json.name` 前缀（`/trae:run`） | 文件名前缀（`trae-run`） |\n+| Marketplace | git URL 或本地路径，`strict: true` 模式 | 无 marketplace 概念，本地扫描 |\n+| 依赖管理 | 根 `package.json`（Node.js） | `.opencode/package.json`（Bun 独立依赖树） |\n+\n+---\n+\n+## 3. 命令系统：Slash Commands vs Bun Tools\n+\n+### Claude Code：Slash Commands（用户交互式）\n+\n+Claude Code 的 `commands/*.md` 文件定义**用户手动触发**的斜杠命令：\n+\n+```markdown\n+---\n+description: 将任务委托给 Trae Agent 执行\n+allowed-tools: Bash(trae-cli:*)\n+---\n+\n+# /trae:run\n+\n+**Description:** 将任务描述直接交给 Trae Agent...\n+**Usage:** /trae:run \"自然语言任务描述\" [options]\n+**Options:** --background, --json, --yolo, ...\n+**Examples:** ...\n+**Internal Execution:**\n+node \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run \"任务描述\" [options]\n+```\n+\n+**执行流程**：\n+1. 用户输入 `/trae:run \"重构\"` → Claude Code 识别 slash command\n+2. Claude Code 读取 `.md` 文件 → 知道该执行什么\n+3. Claude 的 **Bash 工具**运行 `node dist/index.js run \"重构\"`\n+4. `allowed-tools: Bash(trae-cli:*)` 告诉 Claude Code 该命令需要 `Bash` 工具权限\n+\n+**关键特性**：\n+- **用户交互** — 用户主动输入 `/trae:xxx`\n+- **AI 自主调用的分离实现** — 通过 `.mcp.json`（见下文）\n+- **权限声明** — `allowed-tools` 指定所需的 Bash 工具范围\n+\n+### OpenCode：Bun Tools（Agent 调用式）\n+\n+```typescript\n+// .opencode/tools/trae-run.ts\n+import { tool } from \"@opencode-ai/plugin\"\n+\n+export default tool({\n+  description: \"使用 Trae Agent 执行任意自然语言任务...\",\n+  args: {\n+    prompt: tool.schema.string().describe(\"任务描述\"),\n+    yolo: tool.schema.boolean().optional().describe(\"YOLO 模式...\"),\n+    // ...\n+  },\n+  async execute(args, context) {\n+    const { $ } = await import(\"bun\")\n+    const cliArgs: string[] = [\"node\", DIST_INDEX, \"run\"]\n+    cliArgs.push(args.prompt)\n+    if (args.yolo) cliArgs.push(\"--yolo\")\n+    // ...\n+    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR)\n+    return { text: result.stdout }\n+  },\n+})\n+```\n+\n+**执行流程**：\n+1. OpenCode Agent 决定调用工具 → 选择 `trae-run`\n+2. OpenCode 验证参数 against Zod schema\n+3. 直接调用 `execute(args, context)` — **函数调用，非子进程**\n+4. `execute()` 内部通过 Bun `$` 壳命令 `spawn` 子进程\n+\n+**关键特性**：\n+- **Agent 自主调用** — Agent 在 Tool Context 中决策是否调用\n+- **TypeScript 函数调用** — 不是 Bash 工具运行，而是直接函数执行\n+- **Rich Context** — `context` 提供 `sessionID`, `directory`, `worktree`, `abort` 等\n+\n+### 两者本质差异\n+\n+| 维度 | Claude Code Slash Command | OpenCode Bun Tool |\n+|------|--------------------------|-------------------|\n+| 触发者 | 用户（输入 `/trae:xxx`） | AI Agent（在 Tool Context 中决策） |\n+| 执行方式 | Claude 的 Bash 工具运行 `node dist/index.js` | 直接在插件进程中调用 `execute()` 函数 |\n+| 进程层级 | 3 层：Claude → Bash → node dist/index.js | 2 层：OpenCode → execute() → node dist/index.js |\n+| 安全性 | 基于 `allowed-tools` 的 Bash 权限控制 | 基于 Bun 运行时，在 OpenCode 的 Plugin 沙箱内 |\n+| 类型安全 | 无 — Markdown 文件，Claude AI 解析 | 完整 — TypeScript 类型推断 + Zod 运行时校验 |\n+| 用户可见性 | 在 `/help` 面板显示 | 在 `/` 工具面板展示（由 TUI 自动列出） |\n+\n+**重要事实**：OpenCode 没有独立的\"Slash Command\"概念。所有工具都在同一面板中暴露，`/trae:xxx` 的 `/` 前缀是 **OpenCode TUI 的统一入口约定**，与 Claude Code 的 slash command 是不同概念。OpenCode 把 `tools/` 下所有工具都列在 `/` 面板，`trae-` 前缀只是文件名派生的。\n+\n+---\n+\n+## 4. 工具协议：MCP (JSON Schema) vs Bun Tool (Zod + TypeScript)\n+\n+### Claude Code：MCP 工具（声明式 JSON Schema）\n+\n+```json\n+// .mcp.json\n+{\n+  \"tools\": [\n+    {\n+      \"name\": \"trae_run\",\n+      \"description\": \"使用 Trae Agent 执行任意自然语言任务...\",\n+      \"parameters\": {\n+        \"type\": \"object\",\n+        \"properties\": {\n+          \"prompt\":         { \"type\": \"string\", \"description\": \"任务描述\" },\n+          \"yolo\":           { \"type\": \"boolean\", \"description\": \"YOLO 模式...\" },\n+          \"allowed_tools\":  { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n+          \"background\":     { \"type\": \"boolean\", \"description\": \"后台执行\" },\n+          // ...\n+        },\n+        \"required\": [\"prompt\"]\n+      }\n+    }\n+  ]\n+}\n+```\n+\n+**MCP 执行模型**：\n+```\n+Claude LLM → 决定调用 \"trae_run\" → 发送 MCP 请求\n+  → Claude Code MCP Client → spawn(\"node\", [\"dist/index.js\", \"run\", \"--prompt\", \"重构\"])\n+  → 捕获 stdout → 返回给 Claude\n+```\n+\n+MCP 协议中，**工具定义和执行分离**：`.mcp.json` 只描述接口，执行由 Claude Code 的 MCP 服务器托管。 Claude Code 将 JSON 参数转换为 CLI 标志，调用子进程，捕获输出。\n+\n+### OpenCode：Bun Tool（Zod + TypeScript 函数）\n+\n+```typescript\n+export default tool({\n+  description: \"使用 Trae Agent 执行任意自然语言任务...\",\n+  args: {\n+    prompt: tool.schema.string().describe(\"任务描述\"),\n+    yolo: tool.schema.boolean().optional().describe(\"YOLO 模式...\"),\n+    allowed_tools: tool.schema.array(tool.schema.string()).optional(),\n+    background: tool.schema.boolean().optional(),\n+    // ...\n+  },\n+  async execute(args, context) {\n+    const { $ } = await import(\"bun\")\n+    // 手动构建 CLI 参数\n+    const cliArgs = [\"node\", DIST_INDEX, \"run\"]\n+    cliArgs.push(args.prompt)\n+    if (args.yolo) cliArgs.push(\"--yolo\")\n+    // ...\n+    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR)\n+    return { text: result.stdout }\n+  },\n+})\n+```\n+\n+**Bun Tool 执行模型**：\n+```\n+OpenCode LLM → 决定调用 \"trae-run\" → OpenCode 验证 args (Zod)\n+  → execute(args, context) → $`node dist/index.js run` (Bun shell)\n+  → 返回 { text: stdout }\n+```\n+\n+**对比**：\n+\n+| 维度 | MCP JSON Schema | Bun Tool Zod |\n+|------|----------------|-------------|\n+| 参数定义 | `{\"type\": \"string\"}` | `tool.schema.string()` |\n+| 类型推断 | 无 — 纯 JSON | 完整 — `z.infer<Args>` |\n+| 运行时校验 | Claude Code 框架做 | Zod 校验，失败抛异常 |\n+| IDE 支持 | 无 | 自动补全、悬停文档、类型错误 |\n+| 执行委托 | ✅ 框架管理子进程 | ❌ 自己写 `execute()` 逻辑 |\n+| 上下文信息 | 无 | `context: ToolContext`（session, dir, abort...） |\n+| 返回值类型 | 隐式 stdout（纯文本） | `{ output: string; metadata?: Record }` |\n+\n+**关键差异**：MCP 工具是**契约式**的——只声明接口，执行全部委托给框架。Bun Tool 是**实现式**的——每个工具定义自己的执行逻辑和进程管理。\n+\n+---\n+\n+## 5. 生命周期钩子：hooks.json vs Plugin Event System\n+\n+### Claude Code：声明式 hooks.json\n+\n+```json\n+// hooks/hooks.json\n+{\n+  \"hooks\": {\n+    \"SessionStart\": [\n+      {\n+        \"matcher\": \"startup\",\n+        \"hooks\": [{\n+          \"type\": \"command\",\n+          \"command\": \"node \\\"${CLAUDE_PLUGIN_ROOT}/scripts/session-lifecycle-hook.mjs\\\" SessionStart\",\n+          \"timeout\": 10\n+        }]\n+      }\n+    ],\n+    \"Stop\": [\n+      {\n+        \"hooks\": [{\n+          \"type\": \"command\",\n+          \"command\": \"node \\\"${CLAUDE_PLUGIN_ROOT}/scripts/stop-review-gate-hook.mjs\\\"\",\n+          \"timeout\": 60\n+        }]\n+      }\n+    ],\n+    \"PostToolUse\": [\n+      {\n+        \"matcher\": \".*trae:review.*\",\n+        \"hooks\": [{\n+          \"type\": \"command\",\n+          \"command\": \"node \\\"...\\\" PostReview\",\n+          \"timeout\": 5\n+        }]\n+      }\n+    ]\n+  }\n+}\n+```\n+\n+**钩子脚本实现** (`session-lifecycle-hook.mjs`):\n+```javascript\n+async function sessionStart() {\n+  const installed = checkTraeCliInstalled();\n+  const hasConfig = checkTraeConfig();\n+  const running = getRunningJobs();\n+  // 输出状态到 console → 被 Claude 捕获为上下文\n+}\n+\n+async function sessionEnd() {\n+  cleanupStaleLogs();\n+  const running = getRunningJobs();\n+  // 提醒后台任务 + 清理\n+}\n+\n+async function postReview() {\n+  // 记录审查执行到 reviews.jsonl\n+}\n+```\n+\n+**Stop 钩子** (`stop-review-gate-hook.mjs`):\n+```javascript\n+async function stopGate() {\n+  const hasChanges = hasUncommittedChanges(); // git diff\n+  const runningJobs = getRunningJobs();\n+  // 有变更或运行中任务 → process.exit(1) 拦截停止\n+}\n+```\n+\n+| 特性 | hooks.json 定义 |\n+|------|----------------|\n+| 可用钩子 | `SessionStart`、`SessionEnd`、`Stop`、`PostToolUse` |\n+| 匹配器 | `\"startup\"` 关键字 / 正则字符串 / 无（匹配所有） |\n+| 执行方式 | 框架 spawn 子进程 (`command` 字符串) |\n+| 超时控制 | 声明式 `timeout: 10`（秒，框架强制 kill） |\n+| 数据传输 | 无 stdin 输入（隐式环境变量） |\n+| 变量替换 | `${CLAUDE_PLUGIN_ROOT}`（框架替换） |\n+\n+### OpenCode：命令式 Plugin Event Handler\n+\n+```typescript\n+// .opencode/plugins/trae-hooks.ts\n+export const TraeHooksPlugin: Plugin = async ({ directory }) => {\n+  let currentSessionID: string | null = null\n+\n+  return {\n+    event: async ({ event }) => {\n+      switch (event.type) {\n+        case \"session.created\":\n+          // SessionStart\n+          const session = event.properties?.info\n+          currentSessionID = session.id\n+          await callHook(\"session-lifecycle-hook.mjs\", \"SessionStart\", directory, {\n+            session_id: session.id,  // 通过 JSON stdin 传递\n+          })\n+          break\n+\n+        case \"session.deleted\":\n+          // SessionEnd\n+          callHookSync(\"session-lifecycle-hook.mjs\", \"SessionEnd\", directory, {\n+            session_id: session.id,\n+          })\n+          currentSessionID = null\n+          break\n+\n+        case \"server.instance.disposed\":\n+          // SessionEnd 兜底（服务器退出而非显式删除会话）\n+          if (currentSessionID) {\n+            callHookSync(\"session-lifecycle-hook.mjs\", \"SessionEnd\", directory, {\n+              session_id: currentSessionID,\n+            })\n+            currentSessionID = null\n+          }\n+      }\n+    },\n+  }\n+}\n+```\n+\n+**`callHook` / `callHookSync` 实现**：\n+```typescript\n+async function callHook(script: string, hookType: string, cwd: string, payload?: Record) {\n+  const proc = Bun.spawn([\"node\", SCRIPT_DIR, script, hookType], {\n+    cwd,\n+    stdin: payload ? new Blob([JSON.stringify(payload) + \"\\n\"]) : undefined,\n+  })\n+  // 捕获 stdout/stderr\n+  await proc.exited\n+}\n+```\n+\n+| 特性 | OpenCode Plugin Events |\n+|------|----------------------|\n+| 可用事件 | 36+ 种（EventSessionCreated, EventSessionDeleted, ...） |\n+| 实际使用的 | `session.created` → SessionStart, `session.deleted` / `server.instance.disposed` → SessionEnd |\n+| 未映射的 | `Stop`（停止门控）、`PostToolUse`（审查记录） |\n+| 匹配方式 | 代码中 `switch (event.type)` |\n+| 执行方式 | `Bun.spawn()` / `Bun.spawnSync()` |\n+| 数据传输 | JSON 对象通过 stdin 传递 |\n+| 状态保持 | 闭包变量 `currentSessionID` |\n+| 异步支持 | `callHook` (async) / `callHookSync` (sync) |\n+| 错误处理 | `try/catch` 静默吞错（\"plugin must not crash OpenCode\"） |\n+\n+**映射关系**：\n+\n+```\n+Claude Code                     OpenCode\n+────────────                    ────────\n+SessionStart (startup)    ←→    session.created (+ payload via stdin)\n+SessionEnd                ←→    session.deleted / server.instance.disposed\n+Stop (gate)                     ❌ 未实现（无等价事件钩子）\n+PostToolUse (.trae:review.)     ❌ 未实现（可用 tool.execute.after 但需过滤）\n+```\n+\n+**差异根因**：\n+- Claude Code 的 `Stop` 钩子绑定到用户停止操作——这是 TUI 层面的事件，OpenCode 的 Event 类型中无对应\n+- Claude Code 的 `PostToolUse` 通过正则匹配工具名（`.trae:review.`）——OpenCode 的 `tool.execute.after` 钩子可用于相同目的，但本项目未实现过滤\n+\n+---\n+\n+## 6. 命令文档：用户帮助 vs Agent 上下文\n+\n+### Claude Code 命令文档\n+\n+`commands/*.md` 为 **Slash Command 的完整规范**，同时服务两个受众：\n+\n+1. **用户** — 在 `/help` 面板看到格式化输出\n+2. **Claude Code 框架** — 解析执行指令\n+\n+```markdown\n+# /trae:run                          ← H1 标题 = 命令名\n+**Description:** ...                 ← 详细说明\n+**Usage:** /trae:run \"任务\" [options] ← 用法指南\n+**Options:**                         ← 参数列表\n+- `--background`: ...\n+**Examples:**                        ← 示例\n+/trae:run \"重构用户模块\"\n+**Internal Execution:**              ← 框架执行指令\n+node \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run \"任务描述\" [options]\n+```\n+\n+**Frontmatter**：\n+```yaml\n+description: 将任务委托给 Trae Agent 执行\n+allowed-tools: Bash(trae-cli:*)\n+```\n+\n+### OpenCode 命令文档\n+\n+`.opencode/commands/trae-*.md` 仅为 **Agent 可读的参考文档**，不含 Slash Command 语法：\n+\n+```markdown\n+Execute the task by running the trae-plugin-cc CLI:\n+\n+```bash\n+node \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run $ARGUMENTS\n+```\n+\n+Usage examples:\n+- `task \"refactor the user module\"`\n+- `task \"fix the login bug\" --yolo`\n+```\n+\n+**Frontmatter** 仅有 `description:`，无 `allowed-tools`。\n+\n+**关键差异**：\n+\n+| 维度 | Claude Code commands/*.md | OpenCode .opencode/commands/trae-*.md |\n+|------|---------------------------|---------------------------------------|\n+| H1 标题 | `# /trae:<command>` | 无 |\n+| 格式 | 严格分段（Description/Usage/Options/Examples/Internal） | 自由段落 + 代码块 |\n+| Frontmatter | `description` + `allowed-tools` | 仅 `description` |\n+| 语言 | 中文 | 英文 |\n+| 变量占位 | 具体值（\"任务描述\"） | 抽象变量（`$ARGUMENTS`） |\n+| 作用 | 用户帮助 + 框架执行指令 | 仅为 Agent 提供执行参考 |\n+\n+---\n+\n+## 7. 安全模型：allowed-tools vs 无显式权限声明\n+\n+### Claude Code：声明式 Bash 权限\n+\n+Claude Code 的 Slash Commands 通过 `allowed-tools` 声明所需的 Bash 工具访问权限：\n+\n+```markdown\n+# /trae:run\n+allowed-tools: Bash(trae-cli:*)\n+\n+# /trae:review\n+allowed-tools: Bash(git:*), Bash(trae-cli:*)\n+\n+# /trae:cancel\n+allowed-tools: Bash(kill)\n+```\n+\n+**语义**：`Bash(trae-cli:*)` 表示该命令需要 `Bash` 工具能执行包含 `trae-cli` 的命令，`*` 是通配符。\n+\n+**未声明 `allowed-tools` 的命令**（`setup`, `status`, `result`, `sessions`）：不需要特殊 Bash 工具权限，仅运行 `node dist/index.js`。\n+\n+**MCP 工具**不声明 `allowed-tools` — 因为 MCP 工具的执行完全由 Claude Code 的 MCP 服务器托管，不在 Bash 工具链内。\n+\n+### OpenCode：隐式信任\n+\n+OpenCode 的 Plugin 代码运行在 Bun 环境内，**没有独立的权限声明系统**：\n+\n+- `trae-setup.ts` → `Bun.spawn([\"node\", DIST_INDEX, \"setup\"])` — 无权限检查\n+- `trae-run.ts` → `Bun.$\\`node dist/index.js run ...\\`` — 无权限声明\n+- 所有 Bun 工具在 OpenCode Plugin 上下文中拥有完整执行权限\n+\n+**根本原因**：Bun 工具的 `execute()` 是进程内函数调用（不是通过 Bash 工具间接执行），不存在 Claude Code 式的 \"Bash 工具权限\"概念。OpenCode 的权限控制粒度是 **Plugin 级别**（信任整个插件），而非**命令级别**。\n+\n+---\n+\n+## 8. 运行时与进程模型\n+\n+### Claude Code\n+\n+```\n+┌───────────────────────────────────────────┐\n+│           Claude Code (Node.js)            │\n+│                                            │\n+│  ┌─ Slash Command 触发 ──────────────────┐ │\n+│  │ Bash Tool → spawn(\"node\", [...])      │ │\n+│  │  → dist/index.js → spawn(\"trae-cli\")   │ │\n+│  └───────────────────────────────────────┘ │\n+│                                            │\n+│  ┌─ MCP 工具触发 ────────────────────────┐ │\n+│  │ MCP Server → spawn(\"node\", [...])     │ │\n+│  │  → dist/index.js → spawn(\"trae-cli\")   │ │\n+│  └───────────────────────────────────────┘ │\n+│                                            │\n+│  ┌─ 钩子触发 ────────────────────────────┐ │\n+│  │ hooks.json → spawn(\"node\", [...])     │ │\n+│  │  → scripts/*.mjs                       │ │\n+│  └───────────────────────────────────────┘ │\n+└───────────────────────────────────────────┘\n+```\n+\n+**运行时**：Node.js（根 `package.json`）\n+**进程数**：每个命令/工具/钩子 → 新的 `node` 进程 + `trae-cli` 子进程\n+\n+### OpenCode\n+\n+```\n+┌───────────────────────────────────────────┐\n+│           OpenCode (Bun)                   │\n+│                                            │\n+│  ┌─ Bun Tool 触发 ──────────────────────┐ │\n+│  │ execute(args, context)                │ │\n+│  │  → Bun.$\\`node dist/index.js ...\\``   │ │\n+│  │   → dist/index.js → spawn(\"trae-cli\") │ │\n+│  └───────────────────────────────────────┘ │\n+│                                            │\n+│  ┌─ Plugin Hook 触发 ────────────────────┐ │\n+│  │ event({ event }) → Bun.spawn(...)     │ │\n+│  │  → scripts/*.mjs                       │ │\n+│  └───────────────────────────────────────┘ │\n+└───────────────────────────────────────────┘\n+```\n+\n+**运行时**：Bun（`.opencode/package.json` 独立依赖树）\n+**进程数**：每个 Bun Tool 调用 → 新的 Bun 内函数执行 → `spawn(\"node\", ...)` → `trae-cli`\n+\n+---\n+\n+## 9. 本项目的统一架构设计\n+\n+基于两个平台的根本差异，本项目采用 **\"共享核心 + 平台适配层\"** 的双层架构：\n+\n+### 共享核心（src/ → dist/index.js）\n+\n+```\n+src/\n+├── index.ts              ← CLI 入口（argv 解析 → 命令分发）\n+├── commands/             ← 12 个命令处理器\n+│   ├── setup.ts\n+│   ├── run.ts\n+│   ├── review.ts\n+│   ├── sessions.ts\n+│   ├── acp.ts\n+│   ├── ...\n+└── utils/                ← 共享工具类\n+    ├── trae-executor.ts       ← trae-cli 子进程执行器\n+    ├── session-reader.ts      ← 会话文件读取器\n+    ├── auth-bridge.ts         ← 认证状态解析\n+    ├── acp-server-manager.ts  ← ACP 进程管理\n+    ├── acp-client.ts          ← ACP JSON-RPC 客户端\n+    ├── branch-detection.ts    ← git 分支检测\n+    └── ...\n+```\n+\n+**编译**：esbuild 打包为 `dist/index.js`（单文件，含 shebang，Node externals）\n+\n+### Claude Code 适配层\n+\n+```\n+.claude-plugin/plugin.json    ← 插件 identity\n+commands/*.md                 ← 10 个 Slash Command 定义\n+.mcp.json                     ← 4 个 MCP 工具\n+hooks/hooks.json              ← 4 个生命周期钩子\n+scripts/*.mjs                 ← 钩子脚本实现\n+```\n+\n+**调用链**：\n+- Slash Command: 用户 → `/trae:run` → Bash Tool → `node dist/index.js run`\n+- MCP: Claude AI → MCP `trae_run` → MCP Server → `node dist/index.js run`\n+- Hooks: 事件 → hooks.json → `node scripts/*.mjs`\n+\n+### OpenCode 适配层\n+\n+```\n+.opencode/\n+├── tools/trae-*.ts         ← 9 个 Bun 工具 (export default tool({...}))\n+├── commands/trae-*.md      ← 10 个命令参考文档\n+├── plugins/trae-hooks.ts   ← 事件钩子插件 (export const TraeHooksPlugin: Plugin)\n+└── package.json            ← @opencode-ai/plugin@1.14.20\n+```\n+\n+**调用链**：\n+- Tools: Agent → `trae-run` → `execute()` → `Bun.$\\`node dist/index.js run\\``\n+- Commands: Agent → 读取 `.opencode/commands/trae-run.md` → 理解 CLI 参数形式\n+- Hooks: OpenCode 事件 → `TraeHooksPlugin` → `Bun.spawn(\"node\", [script])`\n+\n+### 桥接策略\n+\n+| 问题 | 解决方式 |\n+|------|----------|\n+| MCP 4 个工具 vs 9 个 Bun 工具 | MCP 是 AI 自主调用的最小集（run/review/sessions/acp）；辅助操作（status/result/cancel/rescue/setup）只需 Slash Commands |\n+| Slash `/trae:review` + `/trae:adversarial-review` vs 1 个 `trae-review` 工具 | OpenCode 工具内部用 `adversarial` 布尔参数路由（`args.adversarial ? \"adversarial-review\" : \"review\"`） |\n+| `hooks.json` 4 个钩子 vs `trae-hooks.ts` 3 种事件 | OpenCode 无 `Stop`/`PostToolUse` 等价事件，选择性映射 |\n+| `commands/` vs `.opencode/commands/` | 两套独立文件——Claude Code 需要结构化 Markdown + slash syntax；OpenCode 需要简洁 Agent 指令 |\n+\n+### 参数映射（run 命令完整对照）\n+\n+| Slash Command | MCP 工具 | Bun Tool | CLI 参数 | 说明 |\n+|---|---|---|---|---|\n+| 用户输入 `/trae:run \"x\"` | Agent 调用 `trae_run({prompt:\"x\"})` | Agent 调用 `trae-run({prompt:\"x\"})` | `run \"x\"` | 统一 |\n+| `--yolo` / `-y` | `yolo: true` | `yolo: true` | `--yolo` | 统一 |\n+| `--resume` | `resume: \"AUTO\"` | `resume: \"AUTO\"` | `--resume AUTO` | 统一 |\n+| `--resume <id>` | `resume: \"<id>\"` | `resume: \"<id>\"` | `--resume <id>` | 统一 |\n+| `--worktree` | `worktree: \"__auto__\"` | `worktree: \"__auto__\"` | `--worktree __auto__` | 统一 |\n+| 无 | `json_output: true` | `json_output: true` | `--json` | snake_case 差异 |\n+| 无 | `allowed_tools: [\"Bash\"]` | `allowed_tools: [\"Bash\"]` | `--allowed-tool Bash` | snake_case + array |\n+| 无 | `disallowed_tools: [\"Edit\"]` | `disallowed_tools: [\"Edit\"]` | `--disallowed-tool Edit` | snake_case + array |\n+\n+**MCP/Bun** 使用 `snake_case`（`json_output`, `allowed_tools`），Slash Command CLI 使用 `kebab-case`（`--json`, `--allowed-tool`）。Bun 工具的 `execute()` 负责转换映射。\n+\n+---\n+\n+## 10. 完整对比矩阵\n+\n+| 维度 | Claude Code | OpenCode | 本项目处理策略 |\n+|------|-------------|----------|---------------|\n+| **运行时** | Node.js | Bun | 共享 CLI 用 Node.js（esbuild），OpenCode 工具用 Bun |\n+| **插件入口** | `.claude-plugin/plugin.json` | TypeScript `export const X: Plugin` | 两份独立配置 |\n+| **用户命令** | 10 个 Slash Commands (`/trae:xxx`) | 无独立 Slash Command，工具在 `/` 面板统一展示 | `commands/*.md` 定义 slash 命令；`.opencode/tools/` 定义工具 |\n+| **AI 工具** | 4 个 MCP 工具（JSON Schema） | 9 个 Bun 工具（Zod + TS） | MCP 定义最小 AI 工具集；Bun 工具覆盖全部 CLI 命令 |\n+| **工具注册** | `.mcp.json` 声明式 | `export default tool({...})` 命令式 | 两套独立定义，参数一致 |\n+| **生命周期** | `hooks/hooks.json` (4 个) | `plugins/trae-hooks.ts` (事件映射) | 复用同一批 `.mjs` 脚本，OpenCode 通过 `Bun.spawn` 触发 |\n+| **命令文档** | `commands/*.md` (含 slash 语法) | `.opencode/commands/*.md` (Agent 参考) | 两套独立文件 |\n+| **权限模型** | `allowed-tools` frontmatter | 无（Plugin 级信任） | Slash Commands 声明 `allowed-tools`；Bun 工具不需要 |\n+| **进程模型** | CLI 每调用启动新 `node` 进程 | Bun Tool 进程内调用 → 再 `spawn` `node` | 统一使用 `dist/index.js`（esbuild 单文件） |\n+| **类型安全** | 无（JSON + Markdown） | 完整（TypeScript + Zod） | 共享核心 `src/commands/` 自行解析 argv（无类型框架） |\n+| **工具合并** | `review` + `adversarial-review` (两个独立命令) | `trae-review` (一个工具，`adversarial` 布尔参数) | Bun 工具内部路由到两个 CLI 命令 |\n+| **依赖管理** | 根 `package.json` | `.opencode/package.json` | 两套独立 `package.json` |\n+| **Marketplace** | git URL + `claude plugin install` | 无 marketplace，本地发现 | 支持 Marketplace 安装 + 本地目录安装 |\n",
+              "additions": 723,
+              "deletions": 0,
+              "status": "added"
+            },
+            {
               "file": "package.json",
               "patch": "Index: package.json\n===================================================================\n--- package.json\t\n+++ package.json\t\n@@ -1,43 +1,44 @@\n {\n   \"name\": \"trae-plugin-cc\",\n   \"version\": \"1.0.0\",\n   \"description\": \"在 Claude Code 中直接调用字节 Trae Agent (trae-cli) 做代码审查或任务委托\",\n   \"main\": \"dist/index.js\",\n   \"bin\": {\n     \"trae-plugin-cc\": \"dist/index.js\"\n   },\n   \"scripts\": {\n     \"build\": \"esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:child_process --external:fs --external:path --external:os --external:util --external:process --banner:js='#!/usr/bin/env node' && chmod +x dist/index.js\",\n     \"build:tsc\": \"tsc\",\n+    \"postinstall\": \"npm run build\",\n     \"test\": \"jest\"\n   },\n   \"repository\": {\n     \"type\": \"git\",\n     \"url\": \"git+https://github.com/wangxumarshall/trae-plugin-cc.git\"\n   },\n   \"keywords\": [\n     \"claude\",\n     \"claude-code\",\n     \"plugin\",\n     \"trae\",\n     \"agent\"\n   ],\n   \"author\": \"wangxumarshall\",\n   \"license\": \"MIT\",\n   \"bugs\": {\n     \"url\": \"https://github.com/wangxumarshall/trae-plugin-cc/issues\"\n   },\n   \"homepage\": \"https://github.com/wangxumarshall/trae-plugin-cc#readme\",\n   \"devDependencies\": {\n     \"@types/jest\": \"^30.0.0\",\n     \"@types/js-yaml\": \"^4.0.9\",\n     \"@types/node\": \"^20.0.0\",\n     \"esbuild\": \"^0.28.0\",\n     \"jest\": \"^30.3.0\",\n     \"ts-jest\": \"^29.4.6\",\n     \"typescript\": \"^5.0.0\"\n   },\n   \"dependencies\": {\n     \"js-yaml\": \"^4.1.1\"\n   }\n }\n",
               "additions": 1,
@@ -7469,19 +7476,22 @@
         },
         "cost": 0,
         "tokens": {
-          "input": 0,
-          "output": 0,
-          "reasoning": 0,
+          "total": 122915,
+          "input": 114534,
+          "output": 8347,
+          "reasoning": 34,
           "cache": {
-            "read": 0,
-            "write": 0
+            "write": 0,
+            "read": 0
           }
         },
         "modelID": "Qwen3.6-Plus",
         "providerID": "volcengine-key1",
         "time": {
-          "created": 1776864514114
+          "created": 1776864514114,
+          "completed": 1776864676940
         },
+        "finish": "tool-calls",
         "id": "msg_db560d042001CYFxyM22MNsDrg",
         "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP"
       },
@@ -7506,9 +7516,10 @@
         },
         {
           "type": "text",
-          "text": "",
+          "text": "Now I have all the information needed. Let me write the comprehensive article:\n\n",
           "time": {
-            "start": 1776864526247
+            "start": 1776864526247,
+            "end": 1776864676825
           },
           "id": "prt_db560ffa7001VQ3t082rxD5S40",
           "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
@@ -7519,13 +7530,236 @@
           "tool": "write",
           "callID": "call_4302db7ed1ce48c4b217de1c",
           "state": {
-            "status": "pending",
-            "input": {},
-            "raw": ""
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/docs/platform-architectures.md",
+              "content": "# Claude Code 与 OpenCode 插件架构差异深度解析\n\n## 目录\n\n1. [两大平台的定位差异](#1-两大平台的定位差异)\n2. [插件发现与注册机制](#2-插件发现与注册机制)\n3. [命令系统：Slash Commands vs Bun Tools](#3-命令系统slash-commands-vs-bun-tools)\n4. [工具协议：MCP (JSON Schema) vs Bun Tool (Zod + TypeScript)](#4-工具协议mcp-json-schema-vs-bun-tool-zod--typescript)\n5. [生命周期钩子：hooks.json vs Plugin Event System](#5-生命周期钩子hooksjson-vs-plugin-event-system)\n6. [命令文档：用户帮助 vs Agent 上下文](#6-命令文档用户帮助-vs-agent-上下文)\n7. [安全模型：allowed-tools vs 无显式权限声明](#7-安全模型allowed-tools-vs-无显式权限声明)\n8. [运行时与进程模型](#8-运行时与进程模型)\n9. [本项目的统一架构设计](#9-本项目的统一架构设计)\n10. [完整对比矩阵](#10-完整对比矩阵)\n\n---\n\n## 1. 两大平台的定位差异\n\n### Claude Code：AI 辅助编程终端\n\nClaude Code 是 Anthropic 的命令行 AI 编程工具，采用 **插件 + Skill + Agent + Hook + MCP** 多维扩展体系。其核心特征：\n\n- **用户交互界面是 TUI**（终端用户界面），用户通过 `/` 开头的斜杠命令触发功能\n- **AI 自主调用**通过 MCP（Model Context Protocol）协议实现\n- **Skill 系统**为 AI 提供可自动匹配的上下文注入能力\n- 所有扩展组件通过 **文件发现**（约定目录结构）自动加载\n\n### OpenCode：AI 编程框架\n\nOpenCode 是基于 Bun 运行的 AI 编程框架，采用 **Plugin（TypeScript 模块）** 扩展体系。其核心特征：\n\n- **Plugin 是纯 TypeScript 模块**，`export` 标准接口（Plugin、Tool、Hook）\n- 通过 `@opencode-ai/plugin` SDK 提供类型安全的工厂函数（`tool()`）\n- **Plugin 工厂函数本质是类型包装器** — `tool()` 内部直接返回输入对象（passthrough）\n- **所有能力统一在一个 Plugin 模块**中（tools、hooks、auth、provider、chat.* 等）\n- 工具发现通过 **Bun 自动扫描** `.opencode/tools/*.ts` 的 `export default tool(...)`\n\n---\n\n## 2. 插件发现与注册机制\n\n### Claude Code：声明式文件发现\n\n```\nmy-plugin/\n├── .claude-plugin/plugin.json    ← 插件清单（必需）\n├── commands/*.md                 ← Slash Commands（文件即命令）\n├── .mcp.json                     ← MCP 工具注册\n├── hooks/hooks.json              ← 生命周期钩子\n├── skills/                       ← AI Skills\n├── agents/                       ← 自定义 Agent\n├── .lsp.json                     ← LSP 服务器配置\n├── monitors/monitors.json        ← 后台监控\n├── bin/                          ← PATH 扩展\n└── settings.json                 ← 默认设置\n```\n\n**核心机制**：\n- `.claude-plugin/plugin.json` 定义插件身份（name、description、version）— 仅此文件在 `.claude-plugin/` 下\n- 所有其他目录位于 **插件根级别**\n- Claude Code 扫描目录结构，根据文件名和目录约定自动注册\n- 技能名被 `name` 字段命名空间化（如 `/my-plugin:hello`）\n- Marketplace 安装时以 git URL 或本地路径为源\n\n**plugin.json 格式**：\n```json\n{\n  \"name\": \"trae\",\n  \"description\": \"在 Claude Code 中直接调用字节 Trae Agent (trae-cli) 做代码审查或任务委托\",\n  \"version\": \"1.0.0\",\n  \"author\": { \"name\": \"wangxumarshall\" },\n  \"repository\": \"https://github.com/wangxumarshall/trae-plugin-cc\"\n}\n```\n\n### OpenCode：命令式 TypeScript 模块\n\n```\n.opencode/\n├── tools/trae-*.ts           ← Bun 工具 (export default tool({...}))\n├── commands/trae-*.md        ← 命令描述 (YAML frontmatter + Markdown)\n├── plugins/trae-hooks.ts    ← 生命周期插件 (export const X: Plugin)\n└── package.json              ← 依赖 (@opencode-ai/plugin)\n```\n\n**核心机制**：\n- 无独立 `plugin.json` — 插件身份由 TypeScript 模块的 `export` 名称决定\n- `@opencode-ai/plugin` SDK 提供类型工厂：\n\n```typescript\n// @opencode-ai/plugin/dist/tool.d.ts\nexport type ToolResult = string | {\n    output: string;\n    metadata?: Record<string, any>;\n};\n\nexport declare function tool<Args extends z.ZodRawShape>(input: {\n    description: string;\n    args: Args;\n    execute(args: z.infer<z.ZodObject<Args>>, context: ToolContext): Promise<ToolResult>;\n}): { description: string; args: Args; execute(...): Promise<ToolResult> };\n```\n\n- `tool()` 内部是 **纯 passthrough**（直接返回输入对象），真正的注册由 OpenCode 主机完成\n- 框架扫描 `.opencode/tools/*.ts` 的默认导出，根据文件名派生工具名（`trae-run.ts` → `trae-run`）\n\n**Plugin 类型**：\n```typescript\nexport type PluginInput = {\n    client: ReturnType<typeof createOpencodeClient>;\n    project: Project;\n    directory: string;\n    worktree: string;\n    experimental_workspace: { register(type: string, adaptor: WorkspaceAdaptor): void };\n    serverUrl: URL;\n    $: BunShell;\n};\n\nexport type Plugin = (input: PluginInput, options?: PluginOptions) => Promise<Hooks>;\n\nexport interface Hooks {\n    event?: (input: { event: Event }) => Promise<void>;\n    config?: (input: Config) => Promise<void>;\n    tool?: { [key: string]: ToolDefinition };\n    auth?: AuthHook;\n    provider?: ProviderHook;\n    \"chat.message\"?: (...) => Promise<void>;\n    \"chat.params\"?: (...) => Promise<void>;\n    \"tool.execute.before\"?: (...) => Promise<void>;\n    \"tool.execute.after\"?: (...) => Promise<void>;\n    \"permission.ask\"?: (...) => Promise<void>;\n    // ... 20+ hook types\n}\n```\n\n**关键差异**：\n\n| 维度 | Claude Code | OpenCode |\n|------|-------------|----------|\n| 插件入口 | `.claude-plugin/plugin.json`（声明式） | TypeScript 模块的 `export const X: Plugin`（命令式） |\n| 发现机制 | 扫描目录结构 → 约定命名 → 自动注册 | 扫描 `tools/*.ts` 默认导出 → 文件名派生工具名 |\n| 命名空间 | `plugin.json.name` 前缀（`/trae:run`） | 文件名前缀（`trae-run`） |\n| Marketplace | git URL 或本地路径，`strict: true` 模式 | 无 marketplace 概念，本地扫描 |\n| 依赖管理 | 根 `package.json`（Node.js） | `.opencode/package.json`（Bun 独立依赖树） |\n\n---\n\n## 3. 命令系统：Slash Commands vs Bun Tools\n\n### Claude Code：Slash Commands（用户交互式）\n\nClaude Code 的 `commands/*.md` 文件定义**用户手动触发**的斜杠命令：\n\n```markdown\n---\ndescription: 将任务委托给 Trae Agent 执行\nallowed-tools: Bash(trae-cli:*)\n---\n\n# /trae:run\n\n**Description:** 将任务描述直接交给 Trae Agent...\n**Usage:** /trae:run \"自然语言任务描述\" [options]\n**Options:** --background, --json, --yolo, ...\n**Examples:** ...\n**Internal Execution:**\nnode \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run \"任务描述\" [options]\n```\n\n**执行流程**：\n1. 用户输入 `/trae:run \"重构\"` → Claude Code 识别 slash command\n2. Claude Code 读取 `.md` 文件 → 知道该执行什么\n3. Claude 的 **Bash 工具**运行 `node dist/index.js run \"重构\"`\n4. `allowed-tools: Bash(trae-cli:*)` 告诉 Claude Code 该命令需要 `Bash` 工具权限\n\n**关键特性**：\n- **用户交互** — 用户主动输入 `/trae:xxx`\n- **AI 自主调用的分离实现** — 通过 `.mcp.json`（见下文）\n- **权限声明** — `allowed-tools` 指定所需的 Bash 工具范围\n\n### OpenCode：Bun Tools（Agent 调用式）\n\n```typescript\n// .opencode/tools/trae-run.ts\nimport { tool } from \"@opencode-ai/plugin\"\n\nexport default tool({\n  description: \"使用 Trae Agent 执行任意自然语言任务...\",\n  args: {\n    prompt: tool.schema.string().describe(\"任务描述\"),\n    yolo: tool.schema.boolean().optional().describe(\"YOLO 模式...\"),\n    // ...\n  },\n  async execute(args, context) {\n    const { $ } = await import(\"bun\")\n    const cliArgs: string[] = [\"node\", DIST_INDEX, \"run\"]\n    cliArgs.push(args.prompt)\n    if (args.yolo) cliArgs.push(\"--yolo\")\n    // ...\n    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR)\n    return { text: result.stdout }\n  },\n})\n```\n\n**执行流程**：\n1. OpenCode Agent 决定调用工具 → 选择 `trae-run`\n2. OpenCode 验证参数 against Zod schema\n3. 直接调用 `execute(args, context)` — **函数调用，非子进程**\n4. `execute()` 内部通过 Bun `$` 壳命令 `spawn` 子进程\n\n**关键特性**：\n- **Agent 自主调用** — Agent 在 Tool Context 中决策是否调用\n- **TypeScript 函数调用** — 不是 Bash 工具运行，而是直接函数执行\n- **Rich Context** — `context` 提供 `sessionID`, `directory`, `worktree`, `abort` 等\n\n### 两者本质差异\n\n| 维度 | Claude Code Slash Command | OpenCode Bun Tool |\n|------|--------------------------|-------------------|\n| 触发者 | 用户（输入 `/trae:xxx`） | AI Agent（在 Tool Context 中决策） |\n| 执行方式 | Claude 的 Bash 工具运行 `node dist/index.js` | 直接在插件进程中调用 `execute()` 函数 |\n| 进程层级 | 3 层：Claude → Bash → node dist/index.js | 2 层：OpenCode → execute() → node dist/index.js |\n| 安全性 | 基于 `allowed-tools` 的 Bash 权限控制 | 基于 Bun 运行时，在 OpenCode 的 Plugin 沙箱内 |\n| 类型安全 | 无 — Markdown 文件，Claude AI 解析 | 完整 — TypeScript 类型推断 + Zod 运行时校验 |\n| 用户可见性 | 在 `/help` 面板显示 | 在 `/` 工具面板展示（由 TUI 自动列出） |\n\n**重要事实**：OpenCode 没有独立的\"Slash Command\"概念。所有工具都在同一面板中暴露，`/trae:xxx` 的 `/` 前缀是 **OpenCode TUI 的统一入口约定**，与 Claude Code 的 slash command 是不同概念。OpenCode 把 `tools/` 下所有工具都列在 `/` 面板，`trae-` 前缀只是文件名派生的。\n\n---\n\n## 4. 工具协议：MCP (JSON Schema) vs Bun Tool (Zod + TypeScript)\n\n### Claude Code：MCP 工具（声明式 JSON Schema）\n\n```json\n// .mcp.json\n{\n  \"tools\": [\n    {\n      \"name\": \"trae_run\",\n      \"description\": \"使用 Trae Agent 执行任意自然语言任务...\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"prompt\":         { \"type\": \"string\", \"description\": \"任务描述\" },\n          \"yolo\":           { \"type\": \"boolean\", \"description\": \"YOLO 模式...\" },\n          \"allowed_tools\":  { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"background\":     { \"type\": \"boolean\", \"description\": \"后台执行\" },\n          // ...\n        },\n        \"required\": [\"prompt\"]\n      }\n    }\n  ]\n}\n```\n\n**MCP 执行模型**：\n```\nClaude LLM → 决定调用 \"trae_run\" → 发送 MCP 请求\n  → Claude Code MCP Client → spawn(\"node\", [\"dist/index.js\", \"run\", \"--prompt\", \"重构\"])\n  → 捕获 stdout → 返回给 Claude\n```\n\nMCP 协议中，**工具定义和执行分离**：`.mcp.json` 只描述接口，执行由 Claude Code 的 MCP 服务器托管。 Claude Code 将 JSON 参数转换为 CLI 标志，调用子进程，捕获输出。\n\n### OpenCode：Bun Tool（Zod + TypeScript 函数）\n\n```typescript\nexport default tool({\n  description: \"使用 Trae Agent 执行任意自然语言任务...\",\n  args: {\n    prompt: tool.schema.string().describe(\"任务描述\"),\n    yolo: tool.schema.boolean().optional().describe(\"YOLO 模式...\"),\n    allowed_tools: tool.schema.array(tool.schema.string()).optional(),\n    background: tool.schema.boolean().optional(),\n    // ...\n  },\n  async execute(args, context) {\n    const { $ } = await import(\"bun\")\n    // 手动构建 CLI 参数\n    const cliArgs = [\"node\", DIST_INDEX, \"run\"]\n    cliArgs.push(args.prompt)\n    if (args.yolo) cliArgs.push(\"--yolo\")\n    // ...\n    const result = await $`${cliArgs}`.cwd(PLUGIN_DIR)\n    return { text: result.stdout }\n  },\n})\n```\n\n**Bun Tool 执行模型**：\n```\nOpenCode LLM → 决定调用 \"trae-run\" → OpenCode 验证 args (Zod)\n  → execute(args, context) → $`node dist/index.js run` (Bun shell)\n  → 返回 { text: stdout }\n```\n\n**对比**：\n\n| 维度 | MCP JSON Schema | Bun Tool Zod |\n|------|----------------|-------------|\n| 参数定义 | `{\"type\": \"string\"}` | `tool.schema.string()` |\n| 类型推断 | 无 — 纯 JSON | 完整 — `z.infer<Args>` |\n| 运行时校验 | Claude Code 框架做 | Zod 校验，失败抛异常 |\n| IDE 支持 | 无 | 自动补全、悬停文档、类型错误 |\n| 执行委托 | ✅ 框架管理子进程 | ❌ 自己写 `execute()` 逻辑 |\n| 上下文信息 | 无 | `context: ToolContext`（session, dir, abort...） |\n| 返回值类型 | 隐式 stdout（纯文本） | `{ output: string; metadata?: Record }` |\n\n**关键差异**：MCP 工具是**契约式**的——只声明接口，执行全部委托给框架。Bun Tool 是**实现式**的——每个工具定义自己的执行逻辑和进程管理。\n\n---\n\n## 5. 生命周期钩子：hooks.json vs Plugin Event System\n\n### Claude Code：声明式 hooks.json\n\n```json\n// hooks/hooks.json\n{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"matcher\": \"startup\",\n        \"hooks\": [{\n          \"type\": \"command\",\n          \"command\": \"node \\\"${CLAUDE_PLUGIN_ROOT}/scripts/session-lifecycle-hook.mjs\\\" SessionStart\",\n          \"timeout\": 10\n        }]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [{\n          \"type\": \"command\",\n          \"command\": \"node \\\"${CLAUDE_PLUGIN_ROOT}/scripts/stop-review-gate-hook.mjs\\\"\",\n          \"timeout\": 60\n        }]\n      }\n    ],\n    \"PostToolUse\": [\n      {\n        \"matcher\": \".*trae:review.*\",\n        \"hooks\": [{\n          \"type\": \"command\",\n          \"command\": \"node \\\"...\\\" PostReview\",\n          \"timeout\": 5\n        }]\n      }\n    ]\n  }\n}\n```\n\n**钩子脚本实现** (`session-lifecycle-hook.mjs`):\n```javascript\nasync function sessionStart() {\n  const installed = checkTraeCliInstalled();\n  const hasConfig = checkTraeConfig();\n  const running = getRunningJobs();\n  // 输出状态到 console → 被 Claude 捕获为上下文\n}\n\nasync function sessionEnd() {\n  cleanupStaleLogs();\n  const running = getRunningJobs();\n  // 提醒后台任务 + 清理\n}\n\nasync function postReview() {\n  // 记录审查执行到 reviews.jsonl\n}\n```\n\n**Stop 钩子** (`stop-review-gate-hook.mjs`):\n```javascript\nasync function stopGate() {\n  const hasChanges = hasUncommittedChanges(); // git diff\n  const runningJobs = getRunningJobs();\n  // 有变更或运行中任务 → process.exit(1) 拦截停止\n}\n```\n\n| 特性 | hooks.json 定义 |\n|------|----------------|\n| 可用钩子 | `SessionStart`、`SessionEnd`、`Stop`、`PostToolUse` |\n| 匹配器 | `\"startup\"` 关键字 / 正则字符串 / 无（匹配所有） |\n| 执行方式 | 框架 spawn 子进程 (`command` 字符串) |\n| 超时控制 | 声明式 `timeout: 10`（秒，框架强制 kill） |\n| 数据传输 | 无 stdin 输入（隐式环境变量） |\n| 变量替换 | `${CLAUDE_PLUGIN_ROOT}`（框架替换） |\n\n### OpenCode：命令式 Plugin Event Handler\n\n```typescript\n// .opencode/plugins/trae-hooks.ts\nexport const TraeHooksPlugin: Plugin = async ({ directory }) => {\n  let currentSessionID: string | null = null\n\n  return {\n    event: async ({ event }) => {\n      switch (event.type) {\n        case \"session.created\":\n          // SessionStart\n          const session = event.properties?.info\n          currentSessionID = session.id\n          await callHook(\"session-lifecycle-hook.mjs\", \"SessionStart\", directory, {\n            session_id: session.id,  // 通过 JSON stdin 传递\n          })\n          break\n\n        case \"session.deleted\":\n          // SessionEnd\n          callHookSync(\"session-lifecycle-hook.mjs\", \"SessionEnd\", directory, {\n            session_id: session.id,\n          })\n          currentSessionID = null\n          break\n\n        case \"server.instance.disposed\":\n          // SessionEnd 兜底（服务器退出而非显式删除会话）\n          if (currentSessionID) {\n            callHookSync(\"session-lifecycle-hook.mjs\", \"SessionEnd\", directory, {\n              session_id: currentSessionID,\n            })\n            currentSessionID = null\n          }\n      }\n    },\n  }\n}\n```\n\n**`callHook` / `callHookSync` 实现**：\n```typescript\nasync function callHook(script: string, hookType: string, cwd: string, payload?: Record) {\n  const proc = Bun.spawn([\"node\", SCRIPT_DIR, script, hookType], {\n    cwd,\n    stdin: payload ? new Blob([JSON.stringify(payload) + \"\\n\"]) : undefined,\n  })\n  // 捕获 stdout/stderr\n  await proc.exited\n}\n```\n\n| 特性 | OpenCode Plugin Events |\n|------|----------------------|\n| 可用事件 | 36+ 种（EventSessionCreated, EventSessionDeleted, ...） |\n| 实际使用的 | `session.created` → SessionStart, `session.deleted` / `server.instance.disposed` → SessionEnd |\n| 未映射的 | `Stop`（停止门控）、`PostToolUse`（审查记录） |\n| 匹配方式 | 代码中 `switch (event.type)` |\n| 执行方式 | `Bun.spawn()` / `Bun.spawnSync()` |\n| 数据传输 | JSON 对象通过 stdin 传递 |\n| 状态保持 | 闭包变量 `currentSessionID` |\n| 异步支持 | `callHook` (async) / `callHookSync` (sync) |\n| 错误处理 | `try/catch` 静默吞错（\"plugin must not crash OpenCode\"） |\n\n**映射关系**：\n\n```\nClaude Code                     OpenCode\n────────────                    ────────\nSessionStart (startup)    ←→    session.created (+ payload via stdin)\nSessionEnd                ←→    session.deleted / server.instance.disposed\nStop (gate)                     ❌ 未实现（无等价事件钩子）\nPostToolUse (.trae:review.)     ❌ 未实现（可用 tool.execute.after 但需过滤）\n```\n\n**差异根因**：\n- Claude Code 的 `Stop` 钩子绑定到用户停止操作——这是 TUI 层面的事件，OpenCode 的 Event 类型中无对应\n- Claude Code 的 `PostToolUse` 通过正则匹配工具名（`.trae:review.`）——OpenCode 的 `tool.execute.after` 钩子可用于相同目的，但本项目未实现过滤\n\n---\n\n## 6. 命令文档：用户帮助 vs Agent 上下文\n\n### Claude Code 命令文档\n\n`commands/*.md` 为 **Slash Command 的完整规范**，同时服务两个受众：\n\n1. **用户** — 在 `/help` 面板看到格式化输出\n2. **Claude Code 框架** — 解析执行指令\n\n```markdown\n# /trae:run                          ← H1 标题 = 命令名\n**Description:** ...                 ← 详细说明\n**Usage:** /trae:run \"任务\" [options] ← 用法指南\n**Options:**                         ← 参数列表\n- `--background`: ...\n**Examples:**                        ← 示例\n/trae:run \"重构用户模块\"\n**Internal Execution:**              ← 框架执行指令\nnode \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run \"任务描述\" [options]\n```\n\n**Frontmatter**：\n```yaml\ndescription: 将任务委托给 Trae Agent 执行\nallowed-tools: Bash(trae-cli:*)\n```\n\n### OpenCode 命令文档\n\n`.opencode/commands/trae-*.md` 仅为 **Agent 可读的参考文档**，不含 Slash Command 语法：\n\n```markdown\nExecute the task by running the trae-plugin-cc CLI:\n\n```bash\nnode \"${CLAUDE_PLUGIN_ROOT}/dist/index.js\" run $ARGUMENTS\n```\n\nUsage examples:\n- `task \"refactor the user module\"`\n- `task \"fix the login bug\" --yolo`\n```\n\n**Frontmatter** 仅有 `description:`，无 `allowed-tools`。\n\n**关键差异**：\n\n| 维度 | Claude Code commands/*.md | OpenCode .opencode/commands/trae-*.md |\n|------|---------------------------|---------------------------------------|\n| H1 标题 | `# /trae:<command>` | 无 |\n| 格式 | 严格分段（Description/Usage/Options/Examples/Internal） | 自由段落 + 代码块 |\n| Frontmatter | `description` + `allowed-tools` | 仅 `description` |\n| 语言 | 中文 | 英文 |\n| 变量占位 | 具体值（\"任务描述\"） | 抽象变量（`$ARGUMENTS`） |\n| 作用 | 用户帮助 + 框架执行指令 | 仅为 Agent 提供执行参考 |\n\n---\n\n## 7. 安全模型：allowed-tools vs 无显式权限声明\n\n### Claude Code：声明式 Bash 权限\n\nClaude Code 的 Slash Commands 通过 `allowed-tools` 声明所需的 Bash 工具访问权限：\n\n```markdown\n# /trae:run\nallowed-tools: Bash(trae-cli:*)\n\n# /trae:review\nallowed-tools: Bash(git:*), Bash(trae-cli:*)\n\n# /trae:cancel\nallowed-tools: Bash(kill)\n```\n\n**语义**：`Bash(trae-cli:*)` 表示该命令需要 `Bash` 工具能执行包含 `trae-cli` 的命令，`*` 是通配符。\n\n**未声明 `allowed-tools` 的命令**（`setup`, `status`, `result`, `sessions`）：不需要特殊 Bash 工具权限，仅运行 `node dist/index.js`。\n\n**MCP 工具**不声明 `allowed-tools` — 因为 MCP 工具的执行完全由 Claude Code 的 MCP 服务器托管，不在 Bash 工具链内。\n\n### OpenCode：隐式信任\n\nOpenCode 的 Plugin 代码运行在 Bun 环境内，**没有独立的权限声明系统**：\n\n- `trae-setup.ts` → `Bun.spawn([\"node\", DIST_INDEX, \"setup\"])` — 无权限检查\n- `trae-run.ts` → `Bun.$\\`node dist/index.js run ...\\`` — 无权限声明\n- 所有 Bun 工具在 OpenCode Plugin 上下文中拥有完整执行权限\n\n**根本原因**：Bun 工具的 `execute()` 是进程内函数调用（不是通过 Bash 工具间接执行），不存在 Claude Code 式的 \"Bash 工具权限\"概念。OpenCode 的权限控制粒度是 **Plugin 级别**（信任整个插件），而非**命令级别**。\n\n---\n\n## 8. 运行时与进程模型\n\n### Claude Code\n\n```\n┌───────────────────────────────────────────┐\n│           Claude Code (Node.js)            │\n│                                            │\n│  ┌─ Slash Command 触发 ──────────────────┐ │\n│  │ Bash Tool → spawn(\"node\", [...])      │ │\n│  │  → dist/index.js → spawn(\"trae-cli\")   │ │\n│  └───────────────────────────────────────┘ │\n│                                            │\n│  ┌─ MCP 工具触发 ────────────────────────┐ │\n│  │ MCP Server → spawn(\"node\", [...])     │ │\n│  │  → dist/index.js → spawn(\"trae-cli\")   │ │\n│  └───────────────────────────────────────┘ │\n│                                            │\n│  ┌─ 钩子触发 ────────────────────────────┐ │\n│  │ hooks.json → spawn(\"node\", [...])     │ │\n│  │  → scripts/*.mjs                       │ │\n│  └───────────────────────────────────────┘ │\n└───────────────────────────────────────────┘\n```\n\n**运行时**：Node.js（根 `package.json`）\n**进程数**：每个命令/工具/钩子 → 新的 `node` 进程 + `trae-cli` 子进程\n\n### OpenCode\n\n```\n┌───────────────────────────────────────────┐\n│           OpenCode (Bun)                   │\n│                                            │\n│  ┌─ Bun Tool 触发 ──────────────────────┐ │\n│  │ execute(args, context)                │ │\n│  │  → Bun.$\\`node dist/index.js ...\\``   │ │\n│  │   → dist/index.js → spawn(\"trae-cli\") │ │\n│  └───────────────────────────────────────┘ │\n│                                            │\n│  ┌─ Plugin Hook 触发 ────────────────────┐ │\n│  │ event({ event }) → Bun.spawn(...)     │ │\n│  │  → scripts/*.mjs                       │ │\n│  └───────────────────────────────────────┘ │\n└───────────────────────────────────────────┘\n```\n\n**运行时**：Bun（`.opencode/package.json` 独立依赖树）\n**进程数**：每个 Bun Tool 调用 → 新的 Bun 内函数执行 → `spawn(\"node\", ...)` → `trae-cli`\n\n---\n\n## 9. 本项目的统一架构设计\n\n基于两个平台的根本差异，本项目采用 **\"共享核心 + 平台适配层\"** 的双层架构：\n\n### 共享核心（src/ → dist/index.js）\n\n```\nsrc/\n├── index.ts              ← CLI 入口（argv 解析 → 命令分发）\n├── commands/             ← 12 个命令处理器\n│   ├── setup.ts\n│   ├── run.ts\n│   ├── review.ts\n│   ├── sessions.ts\n│   ├── acp.ts\n│   ├── ...\n└── utils/                ← 共享工具类\n    ├── trae-executor.ts       ← trae-cli 子进程执行器\n    ├── session-reader.ts      ← 会话文件读取器\n    ├── auth-bridge.ts         ← 认证状态解析\n    ├── acp-server-manager.ts  ← ACP 进程管理\n    ├── acp-client.ts          ← ACP JSON-RPC 客户端\n    ├── branch-detection.ts    ← git 分支检测\n    └── ...\n```\n\n**编译**：esbuild 打包为 `dist/index.js`（单文件，含 shebang，Node externals）\n\n### Claude Code 适配层\n\n```\n.claude-plugin/plugin.json    ← 插件 identity\ncommands/*.md                 ← 10 个 Slash Command 定义\n.mcp.json                     ← 4 个 MCP 工具\nhooks/hooks.json              ← 4 个生命周期钩子\nscripts/*.mjs                 ← 钩子脚本实现\n```\n\n**调用链**：\n- Slash Command: 用户 → `/trae:run` → Bash Tool → `node dist/index.js run`\n- MCP: Claude AI → MCP `trae_run` → MCP Server → `node dist/index.js run`\n- Hooks: 事件 → hooks.json → `node scripts/*.mjs`\n\n### OpenCode 适配层\n\n```\n.opencode/\n├── tools/trae-*.ts         ← 9 个 Bun 工具 (export default tool({...}))\n├── commands/trae-*.md      ← 10 个命令参考文档\n├── plugins/trae-hooks.ts   ← 事件钩子插件 (export const TraeHooksPlugin: Plugin)\n└── package.json            ← @opencode-ai/plugin@1.14.20\n```\n\n**调用链**：\n- Tools: Agent → `trae-run` → `execute()` → `Bun.$\\`node dist/index.js run\\``\n- Commands: Agent → 读取 `.opencode/commands/trae-run.md` → 理解 CLI 参数形式\n- Hooks: OpenCode 事件 → `TraeHooksPlugin` → `Bun.spawn(\"node\", [script])`\n\n### 桥接策略\n\n| 问题 | 解决方式 |\n|------|----------|\n| MCP 4 个工具 vs 9 个 Bun 工具 | MCP 是 AI 自主调用的最小集（run/review/sessions/acp）；辅助操作（status/result/cancel/rescue/setup）只需 Slash Commands |\n| Slash `/trae:review` + `/trae:adversarial-review` vs 1 个 `trae-review` 工具 | OpenCode 工具内部用 `adversarial` 布尔参数路由（`args.adversarial ? \"adversarial-review\" : \"review\"`） |\n| `hooks.json` 4 个钩子 vs `trae-hooks.ts` 3 种事件 | OpenCode 无 `Stop`/`PostToolUse` 等价事件，选择性映射 |\n| `commands/` vs `.opencode/commands/` | 两套独立文件——Claude Code 需要结构化 Markdown + slash syntax；OpenCode 需要简洁 Agent 指令 |\n\n### 参数映射（run 命令完整对照）\n\n| Slash Command | MCP 工具 | Bun Tool | CLI 参数 | 说明 |\n|---|---|---|---|---|\n| 用户输入 `/trae:run \"x\"` | Agent 调用 `trae_run({prompt:\"x\"})` | Agent 调用 `trae-run({prompt:\"x\"})` | `run \"x\"` | 统一 |\n| `--yolo` / `-y` | `yolo: true` | `yolo: true` | `--yolo` | 统一 |\n| `--resume` | `resume: \"AUTO\"` | `resume: \"AUTO\"` | `--resume AUTO` | 统一 |\n| `--resume <id>` | `resume: \"<id>\"` | `resume: \"<id>\"` | `--resume <id>` | 统一 |\n| `--worktree` | `worktree: \"__auto__\"` | `worktree: \"__auto__\"` | `--worktree __auto__` | 统一 |\n| 无 | `json_output: true` | `json_output: true` | `--json` | snake_case 差异 |\n| 无 | `allowed_tools: [\"Bash\"]` | `allowed_tools: [\"Bash\"]` | `--allowed-tool Bash` | snake_case + array |\n| 无 | `disallowed_tools: [\"Edit\"]` | `disallowed_tools: [\"Edit\"]` | `--disallowed-tool Edit` | snake_case + array |\n\n**MCP/Bun** 使用 `snake_case`（`json_output`, `allowed_tools`），Slash Command CLI 使用 `kebab-case`（`--json`, `--allowed-tool`）。Bun 工具的 `execute()` 负责转换映射。\n\n---\n\n## 10. 完整对比矩阵\n\n| 维度 | Claude Code | OpenCode | 本项目处理策略 |\n|------|-------------|----------|---------------|\n| **运行时** | Node.js | Bun | 共享 CLI 用 Node.js（esbuild），OpenCode 工具用 Bun |\n| **插件入口** | `.claude-plugin/plugin.json` | TypeScript `export const X: Plugin` | 两份独立配置 |\n| **用户命令** | 10 个 Slash Commands (`/trae:xxx`) | 无独立 Slash Command，工具在 `/` 面板统一展示 | `commands/*.md` 定义 slash 命令；`.opencode/tools/` 定义工具 |\n| **AI 工具** | 4 个 MCP 工具（JSON Schema） | 9 个 Bun 工具（Zod + TS） | MCP 定义最小 AI 工具集；Bun 工具覆盖全部 CLI 命令 |\n| **工具注册** | `.mcp.json` 声明式 | `export default tool({...})` 命令式 | 两套独立定义，参数一致 |\n| **生命周期** | `hooks/hooks.json` (4 个) | `plugins/trae-hooks.ts` (事件映射) | 复用同一批 `.mjs` 脚本，OpenCode 通过 `Bun.spawn` 触发 |\n| **命令文档** | `commands/*.md` (含 slash 语法) | `.opencode/commands/*.md` (Agent 参考) | 两套独立文件 |\n| **权限模型** | `allowed-tools` frontmatter | 无（Plugin 级信任） | Slash Commands 声明 `allowed-tools`；Bun 工具不需要 |\n| **进程模型** | CLI 每调用启动新 `node` 进程 | Bun Tool 进程内调用 → 再 `spawn` `node` | 统一使用 `dist/index.js`（esbuild 单文件） |\n| **类型安全** | 无（JSON + Markdown） | 完整（TypeScript + Zod） | 共享核心 `src/commands/` 自行解析 argv（无类型框架） |\n| **工具合并** | `review` + `adversarial-review` (两个独立命令) | `trae-review` (一个工具，`adversarial` 布尔参数) | Bun 工具内部路由到两个 CLI 命令 |\n| **依赖管理** | 根 `package.json` | `.opencode/package.json` | 两套独立 `package.json` |\n| **Marketplace** | git URL + `claude plugin install` | 无 marketplace，本地发现 | 支持 Marketplace 安装 + 本地目录安装 |\n"
+            },
+            "output": "Wrote file successfully.",
+            "metadata": {
+              "diagnostics": {},
+              "filepath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/docs/platform-architectures.md",
+              "exists": false,
+              "truncated": false
+            },
+            "title": "docs/platform-architectures.md",
+            "time": {
+              "start": 1776864676407,
+              "end": 1776864676422
+            }
           },
           "id": "prt_db5610187001B0HyXGxkyj6Ldm",
           "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
           "messageID": "msg_db560d042001CYFxyM22MNsDrg"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "b2443f035bd3af793f4e39d72dc5b7e2fa90d531",
+          "type": "step-finish",
+          "tokens": {
+            "total": 122915,
+            "input": 114534,
+            "output": 8347,
+            "reasoning": 34,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db5634bda0019Cn0x601kFFd5l",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db560d042001CYFxyM22MNsDrg"
+        },
+        {
+          "type": "patch",
+          "hash": "4fc9cdd30c44c4d75b020d63fcca94e0c3d71cb9",
+          "files": [
+            "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/docs/platform-architectures.md"
+          ],
+          "id": "prt_db5634c4b001vsklalpPOq6rqJ",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db560d042001CYFxyM22MNsDrg"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db55aa6630011B544o61yzPlRt",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 123032,
+          "input": 122934,
+          "output": 71,
+          "reasoning": 27,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776864676952,
+          "completed": 1776864700588
+        },
+        "finish": "tool-calls",
+        "id": "msg_db5634c58001YgrBKXqvuF9JhY",
+        "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP"
+      },
+      "parts": [
+        {
+          "snapshot": "b2443f035bd3af793f4e39d72dc5b7e2fa90d531",
+          "type": "step-start",
+          "id": "prt_db563a1eb001CvOP1MSBesj9HK",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db5634c58001YgrBKXqvuF9JhY"
+        },
+        {
+          "type": "reasoning",
+          "text": "The user wants me to write the documentation to docs directory. Let me check if the file was written successfully and then inform the user.\n",
+          "time": {
+            "start": 1776864698868,
+            "end": 1776864699485
+          },
+          "id": "prt_db563a1f4001lDZdTIKGziokvy",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db5634c58001YgrBKXqvuF9JhY"
+        },
+        {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_8681f0d0f13346e796bdfa63",
+          "state": {
+            "status": "completed",
+            "input": {
+              "command": "wc -l /Users/ubuntu/1-project/idea0015-trae-plugin-cc/docs/platform-architectures.md",
+              "description": "Check article line count"
+            },
+            "output": "     723 /Users/ubuntu/1-project/idea0015-trae-plugin-cc/docs/platform-architectures.md\n",
+            "metadata": {
+              "output": "     723 /Users/ubuntu/1-project/idea0015-trae-plugin-cc/docs/platform-architectures.md\n",
+              "exit": 0,
+              "description": "Check article line count",
+              "truncated": false
+            },
+            "title": "Check article line count",
+            "time": {
+              "start": 1776864700509,
+              "end": 1776864700511
+            }
+          },
+          "id": "prt_db563a45d002rE22keCfDC44XQ",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db5634c58001YgrBKXqvuF9JhY"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "b2443f035bd3af793f4e39d72dc5b7e2fa90d531",
+          "type": "step-finish",
+          "tokens": {
+            "total": 123032,
+            "input": 122934,
+            "output": 71,
+            "reasoning": 27,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db563a860001wD7nN9uY6O7Wne",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db5634c58001YgrBKXqvuF9JhY"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db55aa6630011B544o61yzPlRt",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 123496,
+          "input": 123073,
+          "output": 410,
+          "reasoning": 13,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776864700600,
+          "completed": 1776864713479
+        },
+        "finish": "stop",
+        "id": "msg_db563a8b8001S4IaJQ4zOBW4CA",
+        "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP"
+      },
+      "parts": [
+        {
+          "snapshot": "b2443f035bd3af793f4e39d72dc5b7e2fa90d531",
+          "type": "step-start",
+          "id": "prt_db563bd1f001nkO5C4ctYF1TOC",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db563a8b8001S4IaJQ4zOBW4CA"
+        },
+        {
+          "type": "reasoning",
+          "text": "The file was written successfully. Let me summarize what was written.",
+          "time": {
+            "start": 1776864705824,
+            "end": 1776864706119
+          },
+          "id": "prt_db563bd20001r5stq2SKb9KQ31",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db563a8b8001S4IaJQ4zOBW4CA"
+        },
+        {
+          "type": "text",
+          "text": "The article has been written to `docs/platform-architectures.md` (723 lines). Here's what it covers:\n\n1. **两大平台的定位差异** — Claude Code 是 AI 辅助编程终端（TUI + 多维扩展体系），OpenCode 是 AI 编程框架（Bun + TypeScript Plugin 模块）\n\n2. **插件发现与注册机制** — Claude Code 用声明式文件扫描（`.claude-plugin/plugin.json` + 约定目录结构），OpenCode 用命令式 TypeScript 模块（`export const X: Plugin`，`tool()` 只是 passthrough）\n\n3. **命令系统对比** — Slash Command 是**用户交互**（通过 Bash 工具 exec）、Bun Tool 是**Agent 调用**（`execute()` 直接函数调用）。OpenCode 没有真正的 Slash Command，`/` 面板只是统一工具入口\n\n4. **工具协议对比** — MCP 是**契约式**（只声明接口，框架托管执行），Bun Tool 是**实现式**（自己写 `execute()` 逻辑）。类型安全层：JSON Schema vs Zod v4\n\n5. **生命周期钩子对比** — `hooks.json`（4 个钩子，声明式 `matcher` 正则/关键字） vs Plugin Event System（36+ 种事件，代码中 `switch` 手动路由）。`Stop` 和 `PostToolUse` 在 OpenCode 无等价事件\n\n6. **安全模型** — Claude Code 有命令级 `allowed-tools` 声明（`Bash(trae-cli:*)`），OpenCode 是 Plugin 级隐式信任——因为 Bun Tool 是函数调用而非 Bash 间接执行\n\n7. **统一架构设计** — 本项目的\"共享核心 + 平台适配层\"双层架构，包括参数映射表、进程模型图、调用链追踪",
+          "time": {
+            "start": 1776864706122,
+            "end": 1776864713403
+          },
+          "id": "prt_db563be49001oNX97U0llNlcuF",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db563a8b8001S4IaJQ4zOBW4CA"
+        },
+        {
+          "reason": "stop",
+          "snapshot": "b2443f035bd3af793f4e39d72dc5b7e2fa90d531",
+          "type": "step-finish",
+          "tokens": {
+            "total": 123496,
+            "input": 123073,
+            "output": 410,
+            "reasoning": 13,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db563dabd001UJmnoEKtK6LWbh",
+          "sessionID": "ses_24ad5df21ffeO0Tq9fzDP63vqP",
+          "messageID": "msg_db563a8b8001S4IaJQ4zOBW4CA"
         }
       ]
     }
