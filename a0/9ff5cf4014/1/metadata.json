@@ -1,0 +1,154 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "a09ff5cf4014",
+  "session_id": "ses_24b0affbbffeciTkVVDrTOrlVR",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T12:05:53.12534Z",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "AGENTS.md",
+    "dist/commands/acp.js",
+    "dist/index.js",
+    "dist/utils/acp-client.js",
+    "dist/utils/acp-server-manager.js",
+    "src/commands/acp.ts",
+    "src/utils/acp-client.ts",
+    "src/utils/acp-server-manager.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "Qwen3.6-Plus",
+  "turn_id": "48269ec3f7e3",
+  "token_usage": {
+    "input_tokens": 10916665,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 24253,
+    "api_call_count": 106
+  },
+  "session_metrics": {
+    "turn_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T12:05:53.101754Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 5075,
+    "human_removed": 127,
+    "total_committed": 0,
+    "total_lines_changed": 5202,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 67,
+      "user_lines_removed": 1,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".codex/agents/entire-search.toml": 23,
+        ".codex/config.toml": 3,
+        ".codex/hooks.json": 40,
+        "README.md": 1
+      },
+      "user_removed_per_file": {
+        "README.md": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 363,
+      "agent_lines_removed": 1
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 631,
+      "user_lines_removed": 5176,
+      "agent_lines_added": 443,
+      "agent_lines_removed": 22,
+      "user_added_per_file": {
+        "dist/commands/acp.js": 36,
+        "dist/commands/hooks.js": 10,
+        "dist/commands/review.js": 6,
+        "dist/commands/run.js": 8,
+        "dist/commands/sessions.js": 28,
+        "dist/index.js": 57,
+        "dist/utils.js": 17,
+        "dist/utils/acp-client.js": 109,
+        "dist/utils/acp-server-manager.js": 87,
+        "dist/utils/auth-bridge.js": 7,
+        "dist/utils/session-reader.js": 8,
+        "src/commands/acp.ts": 40,
+        "src/utils/acp-client.ts": 157,
+        "src/utils/acp-server-manager.ts": 23,
+        "test-acp.js": 38
+      },
+      "user_removed_per_file": {
+        "dist/commands/acp.js": 73,
+        "dist/commands/hooks.js": 10,
+        "dist/commands/rescue.js": 9,
+        "dist/commands/run.js": 8,
+        "dist/index.js": 4635,
+        "dist/utils.js": 3,
+        "dist/utils/acp-client.js": 121,
+        "dist/utils/acp-server-manager.js": 38,
+        "dist/utils/auth-bridge.js": 1,
+        "dist/utils/session-reader.js": 1,
+        "src/commands/acp.ts": 86,
+        "src/utils/acp-client.ts": 113,
+        "src/utils/acp-server-manager.ts": 78
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 38,
+      "user_lines_removed": 0,
+      "agent_lines_added": 990,
+      "agent_lines_removed": 5152,
+      "user_added_per_file": {
+        "test-acp.js": 38
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 38,
+      "user_lines_removed": 0,
+      "agent_lines_added": 990,
+      "agent_lines_removed": 5152,
+      "user_added_per_file": {
+        "test-acp.js": 38
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 4565,
+      "user_lines_removed": 57,
+      "agent_lines_added": 1127,
+      "agent_lines_removed": 5152,
+      "user_added_per_file": {
+        "dist/index.js": 4565
+      },
+      "user_removed_per_file": {
+        "dist/index.js": 57
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 1,
+      "user_lines_removed": 1,
+      "agent_lines_added": 1231,
+      "agent_lines_removed": 748,
+      "user_added_per_file": {
+        "src/utils/acp-client.ts": 1
+      },
+      "user_removed_per_file": {
+        "src/utils/acp-client.ts": 1
+      }
+    }
+  ]
+}
