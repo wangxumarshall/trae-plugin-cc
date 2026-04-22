@@ -66,6 +66,11 @@ export async function review(args: string[], isAdversarial: boolean = false) {
         } else if (config.background) {
             console.log('\n审查结果:\n');
             console.log(result.output);
+        } else {
+            if (result.output) {
+                console.log('\n## 审查结果\n');
+                console.log(result.output);
+            }
         }
 
         if (result.sessionId) {

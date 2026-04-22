@@ -5,11 +5,12 @@
  */
 
 import { execSync } from 'child_process';
-import { existsSync, readdirSync, statSync, unlinkSync } from 'fs';
+import { existsSync, readdirSync, statSync, unlinkSync, mkdirSync, appendFileSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 import { getPluginDir, getRunningJobs } from './job-utils.mjs';
 
-const CONFIG_FILE = '.trae/trae_config.yaml';
+const CONFIG_FILE = join(homedir(), '.trae', 'trae_cli.yaml');
 
 function checkTraeCliInstalled() {
   // Use execSync only with fixed commands, no user input
@@ -22,8 +23,7 @@ function checkTraeCliInstalled() {
 }
 
 function checkTraeConfig() {
-  const configPath = join(process.cwd(), CONFIG_FILE);
-  return existsSync(configPath);
+  return existsSync(CONFIG_FILE);
 }
 
 function cleanupStaleLogs() {
@@ -104,7 +104,25 @@ async function sessionEnd() {
 }
 
 async function postReview() {
-  // Post-review hook - placeholder for tracking
+  // Post-review hook: record review execution for tracking
+  try {
+    const pluginDir = getPluginDir();
+    if (!existsSync(pluginDir)) {
+      mkdirSync(pluginDir, { recursive: true });
+    }
+
+    const reviewLog = join(pluginDir, 'reviews.jsonl');
+    const entry = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      event: 'PostReview',
+      cwd: process.cwd(),
+    }) + '\n';
+
+    appendFileSync(reviewLog, entry);
+    console.log('📝 审查记录已保存:', reviewLog);
+  } catch (e) {
+    console.error('⚠️  审查记录保存失败:', e.message);
+  }
   process.exit(0);
 }
 

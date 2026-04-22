@@ -9,25 +9,26 @@ export async function handleHook(args: string[]) {
         process.exit(1);
     }
 
-    const scriptMap: Record<string, string> = {
-        'session-start': 'session-lifecycle-hook.mjs',
-        'session-end': 'session-lifecycle-hook.mjs',
-        'stop-gate': 'stop-review-gate-hook.mjs'
+    const hookMap: Record<string, { script: string; arg: string }> = {
+        'session-start': { script: 'session-lifecycle-hook.mjs', arg: 'SessionStart' },
+        'session-end': { script: 'session-lifecycle-hook.mjs', arg: 'SessionEnd' },
+        'stop-gate': { script: 'stop-review-gate-hook.mjs', arg: '' },
     };
 
-    const script = scriptMap[hookType];
-    if (!script) {
+    const entry = hookMap[hookType];
+    if (!entry) {
         console.error(`Unknown hook type: ${hookType}`);
-        console.error(`Available: ${Object.keys(scriptMap).join(', ')}`);
+        console.error(`Available: ${Object.keys(hookMap).join(', ')}`);
         process.exit(1);
     }
 
-    // Get plugin root from environment variable or use default path
     const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.join(__dirname, '..');
-    const scriptPath = path.join(pluginRoot, 'scripts', script);
+    const scriptPath = path.join(pluginRoot, 'scripts', entry.script);
+
+    const spawnArgs = entry.arg ? [scriptPath, entry.arg] : [scriptPath];
 
     return new Promise((resolve, reject) => {
-        const child = spawn('node', [scriptPath], {
+        const child = spawn('node', spawnArgs, {
             stdio: 'inherit',
             detached: false
         });

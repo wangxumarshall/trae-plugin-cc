@@ -1,6 +1,12 @@
 import { spawn, ChildProcess } from 'child_process';
 import { AcpClient } from '../utils/acp-client';
 
+type StartupEvent = {
+  at: string;
+  event: string;
+  detail?: string;
+};
+
 export class AcpServerManager {
   private process: ChildProcess | null = null;
   private port: number = 0;
@@ -32,20 +38,71 @@ export class AcpServerManager {
         }
       }
 
+      const startupEvents: StartupEvent[] = [];
+      const outputSnippets: string[] = [];
+      let started = false;
+      let settled = false;
+      let firstStdoutSeen = false;
+      let firstStderrSeen = false;
+
+      const recordEvent = (event: string, detail?: string) => {
+        startupEvents.push({
+          at: new Date().toISOString(),
+          event,
+          detail,
+        });
+      };
+
+      const rememberOutput = (source: 'stdout' | 'stderr', text: string) => {
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        if (!normalized) return;
+        outputSnippets.push(`[${source}] ${normalized}`);
+        if (outputSnippets.length > 8) outputSnippets.shift();
+      };
+
+      const buildDiagnostic = () => {
+        const trace = startupEvents
+          .map((item, idx) => `${idx + 1}. ${item.at} ${item.event}${item.detail ? ` | ${item.detail}` : ''}`)
+          .join('\n');
+        const recentOutput = outputSnippets.length > 0
+          ? outputSnippets.map((line, idx) => `${idx + 1}. ${line}`).join('\n')
+          : 'none';
+        return `\n[ACP] startup diagnostics\ntrace:\n${trace || 'none'}\nrecent_output:\n${recentOutput}`;
+      };
+
+      const fail = (message: string) => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(`${message}${buildDiagnostic()}`));
+      };
+
+      const succeed = (port: number) => {
+        if (settled) return;
+        settled = true;
+        resolve({
+          port,
+          baseUrl: `http://localhost:${port}`,
+        });
+      };
+
       // 设置环境变量，支持 PAT 认证
       const env = { ...process.env };
       if (process.env.TRAECLI_PERSONAL_ACCESS_TOKEN) {
         env.TRAECLI_PERSONAL_ACCESS_TOKEN = process.env.TRAECLI_PERSONAL_ACCESS_TOKEN;
       }
 
+      recordEvent('spawn:start', `cmd=trae-cli ${args.join(' ')}`);
+
       const child = spawn('trae-cli', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         env,
       });
 
-      let started = false;
+      recordEvent('spawn:created', `pid=${child.pid || 'unknown'}`);
 
-      const detectPort = (text: string) => {
+      const detectPort = (text: string, source: 'stdout' | 'stderr') => {
+        rememberOutput(source, text);
+
         const portMatch = text.match(/listening.*?:(\d+)/i) ||
                           text.match(/port.*?(\d+)/i) ||
                           text.match(/http:\/\/localhost:(\d+)/i) ||
@@ -55,29 +112,52 @@ export class AcpServerManager {
           this.port = parseInt(portMatch[1], 10);
           this.process = child;
           this.client = new AcpClient(`http://localhost:${this.port}`);
-          resolve({
-            port: this.port,
-            baseUrl: `http://localhost:${this.port}`,
-          });
+          recordEvent('port:detected', `source=${source}, port=${this.port}`);
+          succeed(this.port);
         }
       };
 
-      child.stdout?.on('data', (chunk: Buffer) => detectPort(chunk.toString()));
-      child.stderr?.on('data', (chunk: Buffer) => detectPort(chunk.toString()));
-
-      child.on('error', (err) => {
-        if (!started) reject(err);
+      child.stdout?.on('data', (chunk: Buffer) => {
+        if (!firstStdoutSeen) {
+          firstStdoutSeen = true;
+          recordEvent('stdout:first-chunk');
+        }
+        detectPort(chunk.toString(), 'stdout');
       });
 
-      child.on('close', (code) => {
+      child.stderr?.on('data', (chunk: Buffer) => {
+        if (!firstStderrSeen) {
+          firstStderrSeen = true;
+          recordEvent('stderr:first-chunk');
+        }
+        detectPort(chunk.toString(), 'stderr');
+      });
+
+      child.on('error', (err) => {
+        recordEvent('process:error', err.message);
+        fail(`ACP server spawn failed: ${err.message}`);
+      });
+
+      child.on('close', (code, signal) => {
+        recordEvent('process:close', `code=${code ?? 'null'}, signal=${signal ?? 'null'}`);
         this.process = null;
-        if (!started) reject(new Error(`ACP server exited with code ${code}`));
+        if (!started) {
+          fail(`ACP server exited before port detected (code=${code ?? 'null'}, signal=${signal ?? 'null'})`);
+        }
       });
 
       setTimeout(() => {
-        if (!started) {
-          child.kill('SIGTERM');
-          reject(new Error('ACP server startup timeout (15s)'));
+        if (!started && !settled) {
+          const alive = child.exitCode === null;
+          recordEvent('startup:timeout', `alive=${alive}, exitCode=${child.exitCode ?? 'null'}, signalCode=${child.signalCode ?? 'null'}`);
+
+          if (alive) {
+            child.kill('SIGTERM');
+            fail('ACP server process is alive but no port was detected within 15s');
+            return;
+          }
+
+          fail('ACP server startup timeout (15s)');
         }
       }, 15000);
     });
