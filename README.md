@@ -144,38 +144,65 @@ OpenCode's TUI `/` panel lists available tools from `.opencode/tools/`; `trae-` 
 
 All commands map to `node dist/index.js <command> [args]`.
 In **Claude Code**, users type `/trae:<command>` (slash commands).
-In **OpenCode**, agents call `trae-<command>` tools or follow command descriptions.
+In **OpenCode**, agents call `trae-<command>` tools — parameters are passed as named arguments, not CLI flags.
 
 ### `setup`
 
-Verify trae-cli installation and auth status.
+Verify trae-cli installation and auth status. Run once before first use.
 
-<table><tr><td>Claude Code</td><td>/trae:setup</td></tr><tr><td>OpenCode</td><td>trae-setup tool (no args)</td></tr></table>
+<table><tr><td>Claude Code</td><td>
+
+```
+/trae:setup
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-setup** tool (no parameters)
+</td></tr></table>
 
 ---
 
-### `run "prompt"`
+### `run`
 
 Delegate a natural language task to Trae Agent.
 
-<table><tr><td>Claude Code</td><td>/trae:run "描述任务" [options]</td></tr><tr><td>OpenCode</td><td>trae-run tool with prompt + options</td></tr></table>
+<table><tr><td>Claude Code</td><td>
 
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--background` | | Run in background (returns job ID) |
-| `--json` | | Structured JSON output with `session_id` |
-| `--yolo` | `-y` | Skip tool permission confirmations |
-| `--resume [ID]` | | Resume session (omit ID = auto-resume latest) |
-| `--session-id <id>` | | Specify new session ID |
-| `--worktree [name]` | `-w` | Isolated git worktree (omit name = `__auto__`) |
-| `--allowed-tool <n>` | | Auto-approve tool (repeatable) |
-| `--disallowed-tool <n>` | | Auto-reject tool (repeatable) |
-| `--query-timeout <d>` | | Per-query timeout (e.g. `30s`, `5m`) |
-| `--bash-tool-timeout <d>` | | Bash tool timeout |
-| `-c <k=v>` | | Config override (repeatable) |
-| `--inject-context <id>` | | Inject another session's context |
+```
+/trae:run "描述任务" [options]
+```
+</td></tr><tr><td>OpenCode</td><td>
 
-**Examples:**
+Call **trae-run** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prompt` | string | Yes | 任务描述 |
+| `resume` | string | No | 恢复会话：会话ID 或 `"AUTO"` 自动恢复最近会话 |
+| `session_id` | string | No | 指定新会话 ID |
+| `yolo` | boolean | No | 跳过工具权限确认 |
+| `allowed_tools` | string[] | No | 自动批准的工具列表，如 `["Bash", "Edit", "Replace"]` |
+| `disallowed_tools` | string[] | No | 自动拒绝的工具列表 |
+| `json_output` | boolean | No | 返回结构化 JSON 输出 |
+| `background` | boolean | No | 后台执行 |
+| `worktree` | string | No | 隔离的 git worktree，`"__auto__"` 自动生成名称 |
+| `query_timeout` | string | No | 单次查询超时，如 `"30s"`, `"5m"` |
+| `bash_tool_timeout` | string | No | Bash 工具超时 |
+| `inject_context` | string | No | 注入指定会话的上下文到 prompt 中 |
+</td></tr></table>
+
+**OpenCode usage examples** (agent calls tool with these parameters):
+- `trae-run(prompt="重构用户模块")`
+- `trae-run(prompt="修复登录bug", yolo=true)`
+- `trae-run(prompt="生成项目文档", background=true)`
+- `trae-run(prompt="分析代码库", json_output=true)`
+- `trae-run(prompt="继续任务", resume="AUTO")`
+- `trae-run(prompt="继续任务", resume="0d3cbdc3-e365-468e-982c-fb3d5849f5cc")`
+- `trae-run(prompt="实验性变更", worktree="__auto__")`
+- `trae-run(prompt="运行脚本", allowed_tools=["Bash", "Edit"])`
+- `trae-run(prompt="继续优化", inject_context="abc123")`
+
+**Claude Code usage examples:**
 ```bash
 /trae:run "重构认证模块" --background --json
 /trae:run "继续" --resume --yolo
@@ -188,54 +215,92 @@ Delegate a natural language task to Trae Agent.
 
 Code review with automatic git diff.
 
-<table><tr><td>Claude Code</td><td>/trae:review or /trae:adversarial-review</td></tr><tr><td>OpenCode</td><td>trae-review tool with `adversarial: true/false`</td></tr></table>
+<table><tr><td>Claude Code</td><td>
 
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--base <branch>` | | Base branch (auto-detected: main/master/develop) |
-| `--background` | | Run in background (recommended for large diffs) |
-| `--yolo` | `-y` | Skip tool confirmations |
-| `--json` | | Structured JSON output |
-| `--session-id <id>` | | Specify session ID |
+```
+/trae:review
+/trae:adversarial-review
+```
+</td></tr><tr><td>OpenCode</td><td>
 
-Auto-detects base branch and estimates review size, recommending background mode for large changes.
+Call **trae-review** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `base_branch` | string | No | 基准分支，默认自动检测 |
+| `adversarial` | boolean | No | 设为 `true` 启用对抗性审查模式 |
+| `background` | boolean | No | 后台执行（大 diff 推荐） |
+| `yolo` | boolean | No | 跳过确认 |
+| `json_output` | boolean | No | 返回结构化 JSON 输出 |
+| `session_id` | string | No | 指定会话 ID |
+
+- 标准审查：`trae-review()`
+- 对抗性审查：`trae-review(adversarial=true)`
+</td></tr></table>
+
+自动检测基准分支并估算审查大小，大变更推荐后台模式。
 
 ---
 
-### `sessions <action>`
+### `sessions`
 
 Manage trae-cli's historical sessions (reads from file cache directly — no HTTP calls).
 
-<table><tr><td>Claude Code</td><td>/trae:sessions <action> [options]</td></tr><tr><td>OpenCode</td><td>trae-sessions tool with `action` + args</td></tr></table>
+<table><tr><td>Claude Code</td><td>
 
-| Action | Args | Options | Description |
-|--------|------|---------|-------------|
-| `list` | | `--cwd`, `--limit` (default 20) | List all sessions |
-| `recent` | | `--cwd` | Most recent session for cwd |
-| `detail <id>` | `<session-id>` | | Session metadata + event counts |
-| `conversation <id>` | `<session-id>` | `--limit` (default 50) | Conversation messages |
-| `tools <id>` | `<session-id>` | | Tool call stats + records (up to 30) |
-| `context <id>` | `<session-id>` | | Full context summary |
-| `find <topic>` | `<topic>` | | Search by keyword |
-| `delete <id>` | `<session-id>` | | Delete a session |
-| `delete-smoke` | | | Bulk delete sessions with "smoke" in ID/title |
+```
+/trae:sessions <action> [options]
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-sessions** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | enum | Yes | `list`, `detail`, `conversation`, `tools`, `context`, `recent`, `find`, `delete`, `delete-smoke` |
+| `session_id` | string | No | 会话 ID（detail/conversation/tools/context/delete 需要） |
+| `cwd` | string | No | 按工作目录筛选（list/recent） |
+| `limit` | number | No | 返回数量限制，默认 20 |
+| `topic` | string | No | 搜索关键词（find action） |
+</td></tr></table>
+
+**Action reference:**
+
+| action | 需要 session_id | 描述 |
+|--------|----------------|------|
+| `list` | No | 列出所有会话 |
+| `recent` | No | 最近一次会话 |
+| `detail` | Yes | 查看会话元数据 + 事件计数 |
+| `conversation` | Yes | 查看对话消息 |
+| `tools` | Yes | 查看工具调用统计 + 记录（最多30条） |
+| `context` | Yes | 查看完整上下文摘要 |
+| `find` | No | 按关键词搜索（使用 `topic` 参数） |
+| `delete` | Yes | 删除一个会话 |
+| `delete-smoke` | No | 批量删除 ID/title 中包含 "smoke" 的会话 |
 
 ---
 
-### `acp <action>`
+### `acp`
 
 ACP protocol: **JSON-RPC over STDIO** (not HTTP). Enables Agent-to-Agent communication.
 
-<table><tr><td>Claude Code</td><td>/trae:acp <action> [options]</td></tr><tr><td>OpenCode</td><td>trae-acp tool with `action` + args</td></tr></table>
+<table><tr><td>Claude Code</td><td>
 
-| Action | Args | Description |
-|--------|------|-------------|
-| `start` | `--yolo`, `--allowed-tool`, `--disabled-tool` | Start ACP Server (blocks, keeps STDIO pipe open) |
-| `stop` | | Stop ACP Server |
-| `status` | | Check server status |
-| `agents` | | Discover available agents (auto-starts server if needed) |
-| `run <prompt>` | `<prompt>` | Execute task via ACP (auto-starts server) |
-| `stream <prompt>` | `<prompt>` | Stream task output in real-time (auto-starts server) |
+```
+/trae:acp <action> [options]
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-acp** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | enum | Yes | `start`, `stop`, `status`, `agents`, `run`, `stream` |
+| `prompt` | string | No | 任务描述（run/stream 需要） |
+| `yolo` | boolean | No | YOLO 模式（start/run） |
+| `allowed_tools` | string[] | No | 允许的工具（start） |
+| `disabled_tools` | string[] | No | 禁用的工具（start） |
+</td></tr></table>
 
 > **Note**: `acp start` is a blocking call — it holds the process alive for the STDIO pipe. Use `agents`, `run`, or `stream` for interactive use (they auto-start the server).
 
@@ -245,23 +310,55 @@ ACP protocol: **JSON-RPC over STDIO** (not HTTP). Enables Agent-to-Agent communi
 
 List all background tasks (reads `.claude-trae-plugin/` for PID files).
 
-<table><tr><td>Claude Code</td><td>/trae:status</td></tr><tr><td>OpenCode</td><td>trae-status tool</td></tr></table>
+<table><tr><td>Claude Code</td><td>
+
+```
+/trae:status
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-status** tool (no parameters)
+</td></tr></table>
 
 ---
 
-### `result <task-id>`
+### `result`
 
 Get output of a background task.
 
-<table><tr><td>Claude Code</td><td>/trae:result <task-id></td></tr><tr><td>OpenCode</td><td>trae-result tool with `task_id`</td></tr></table>
+<table><tr><td>Claude Code</td><td>
+
+```
+/trae:result <task-id>
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-result** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task_id` | string | Yes | 后台任务 ID（时间戳） |
+</td></tr></table>
 
 ---
 
-### `cancel <task-id>`
+### `cancel`
 
 Force-kill a background task (SIGKILL).
 
-<table><tr><td>Claude Code</td><td>/trae:cancel <task-id></td></tr><tr><td>OpenCode</td><td>trae-cancel tool with `task_id`</td></tr></table>
+<table><tr><td>Claude Code</td><td>
+
+```
+/trae:cancel <task-id>
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-cancel** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task_id` | string | Yes | 要取消的后台任务 ID（时间戳） |
+</td></tr></table>
 
 ---
 
@@ -269,11 +366,19 @@ Force-kill a background task (SIGKILL).
 
 Diagnose recent task failures, collect error logs and git status.
 
-<table><tr><td>Claude Code</td><td>/trae:rescue [--context text]</td></tr><tr><td>OpenCode</td><td>trae-rescue tool with optional `context`</td></tr></table>
+<table><tr><td>Claude Code</td><td>
 
-| Option | Description |
-|--------|-------------|
-| `--context <text>` | Additional context for diagnosis |
+```
+/trae:rescue [--context text]
+```
+</td></tr><tr><td>OpenCode</td><td>
+
+Call **trae-rescue** tool with parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `context` | string | No | 提供额外的上下文信息帮助诊断 |
+</td></tr></table>
 
 ---
 
