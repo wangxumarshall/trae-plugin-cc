@@ -1,0 +1,13 @@
+已安装trae-cli，重新 sourc zshrc即可
+
+---
+
+用中文回答，言简意赅
+
+---
+
+深度理解本项目，将其移植到opencode上，然后对所有功能进行完整的测试，最后阅读~/.claude/plans/glittery-riding-crane.md，解决这几个问题；最终要求在opencode完成所有功能测试
+
+---
+
+所有测试都是真实的模拟人操作的测试
