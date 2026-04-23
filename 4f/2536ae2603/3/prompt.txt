@@ -1,0 +1,136 @@
+如何在opencode中增加定时触发的任务
+
+---
+
+安装1opencode-scheduler插件
+
+---
+
+每天晚上10:06 review本代码藏所有补丁
+
+---
+
+取消定时任务、
+
+---
+
+如何使用 /trae-acp
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp run "review 最新提交的10个补丁"
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp run "review 最新提交的10个补丁"
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
+
+---
+
+修复
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp run "review 最新提交的10个补丁"
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp run "review 最新提交的10个补丁"
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp run "review 最新提交的10个补丁"
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
