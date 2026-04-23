@@ -1,143 +1,62 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getCliCacheDirs } from '../config';
-
-export type DataSource = 'file' | 'json' | 'acp';
-
-export interface SessionMeta {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  metadata: {
-    cwd: string;
-    model_name: string;
-    permission_mode: string;
-    title: string;
-  };
-}
-
-export interface SessionEvent {
-  id: string;
-  session_id: string;
-  branch: string;
-  agent_id: string;
-  agent_name: string;
-  parent_tool_call_id: string;
-  created_at: string;
-  message?: {
-    message: {
-      role: string;
-      content: string | Array<{ type: string; text: string }>;
-      tool_calls?: Array<{
-        id: string;
-        type: string;
-        function: { name: string; arguments: string };
-      }>;
-    };
-  };
-  tool_call?: {
-    tool_call_id: string;
-    tool_info: {
-      name: string;
-      description: string;
-      inputSchema: any;
-    };
-    input: any;
-    is_programmatic?: boolean;
-  };
-  tool_call_output?: {
-    tool_call_id: string;
-    output: any;
-    is_error?: boolean;
-  };
-  state_update?: {
-    updates: Record<string, any>;
-  };
-  agent_start?: Record<string, any>;
-}
-
-export interface ConversationMessage {
-  role: string;
-  content: string;
-  toolCalls?: string[];
-  timestamp: string;
-}
-
-export interface ToolCallRecord {
-  id: string;
-  name: string;
-  input: any;
-  output?: any;
-  isError?: boolean;
-  timestamp: string;
-}
-
-export interface FileTrackStatus {
-  [filePath: string]: {
-    read_time: string;
-    content: string;
-  };
-}
-
-export interface JsonOutputSession {
-  session_id: string;
-  messages?: any[];
-  [key: string]: any;
-}
+import {
+  SessionMeta,
+  SessionEvent,
+  ConversationMessage,
+  ToolCallRecord,
+  FileTrackStatus,
+} from '../types';
 
 export class SessionReader {
   private sessionsDir: string;
   private historyFile: string;
 
   constructor() {
-    const candidates = getCliCacheDirs();
-    const cacheDir = candidates.find(dir => fs.existsSync(dir)) || candidates[0];
-
+    const cacheDir = this.findCacheDir();
     this.sessionsDir = path.join(cacheDir, 'sessions');
     this.historyFile = path.join(cacheDir, 'history.jsonl');
+  }
+
+  private findCacheDir(): string {
+    const candidates = getCliCacheDirs();
+    return candidates.find(dir => fs.existsSync(dir)) || candidates[0];
   }
 
   listSessions(options?: { cwd?: string; limit?: number }): SessionMeta[] {
     if (!fs.existsSync(this.sessionsDir)) return [];
 
     const sessions = fs.readdirSync(this.sessionsDir)
-      .filter(dir => {
-        const sessionFile = path.join(this.sessionsDir, dir, 'session.json');
-        return fs.existsSync(sessionFile);
-      })
-      .map(dir => {
-        try {
-          const content = fs.readFileSync(
-            path.join(this.sessionsDir, dir, 'session.json'),
-            'utf-8'
-          );
-          return JSON.parse(content) as SessionMeta;
-        } catch {
-          return null;
-        }
-      })
+      .filter(dir => fs.existsSync(path.join(this.sessionsDir, dir, 'session.json')))
+      .map(dir => this.readSessionJson(dir))
       .filter((s): s is SessionMeta => s !== null)
-      .sort((a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+    const filtered = options?.cwd
+      ? sessions.filter(s => s.metadata.cwd === options.cwd)
+      : sessions;
+
+    return options?.limit ? filtered.slice(0, options.limit) : filtered;
+  }
+
+  private readSessionJson(dir: string): SessionMeta | null {
+    try {
+      const content = fs.readFileSync(
+        path.join(this.sessionsDir, dir, 'session.json'),
+        'utf-8',
       );
-
-    let filtered = sessions;
-    if (options?.cwd) {
-      filtered = filtered.filter(s => s.metadata.cwd === options.cwd);
+      return JSON.parse(content) as SessionMeta;
+    } catch {
+      return null;
     }
-
-    if (options?.limit) {
-      filtered = filtered.slice(0, options.limit);
-    }
-
-    return filtered;
   }
 
   getSession(sessionId: string): SessionMeta | null {
     const filePath = path.join(this.sessionsDir, sessionId, 'session.json');
     if (!fs.existsSync(filePath)) return null;
     try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as SessionMeta;
     } catch {
       return null;
     }
@@ -147,28 +66,24 @@ export class SessionReader {
     const filePath = path.join(this.sessionsDir, sessionId, 'events.jsonl');
     if (!fs.existsSync(filePath)) return [];
 
-    const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
-    return lines
+    return fs.readFileSync(filePath, 'utf-8')
+      .split('\n')
       .filter(line => line.trim())
-      .map(line => {
-        try { return JSON.parse(line) as SessionEvent; }
-        catch { return null; }
-      })
+      .map(line => this.parseJson<SessionEvent>(line))
       .filter((e): e is SessionEvent => e !== null);
   }
 
   getConversation(sessionId: string, options?: { limit?: number }): ConversationMessage[] {
     const events = this.getEvents(sessionId);
-    let messages = events
+    const messages = events
       .filter(e => e.message)
       .map(e => {
         const msg = e.message!.message;
-        let content = '';
-        if (typeof msg.content === 'string') {
-          content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          content = msg.content.map(c => c.text || '').join('\n');
-        }
+        const content = typeof msg.content === 'string'
+          ? msg.content
+          : Array.isArray(msg.content)
+            ? msg.content.map(c => c.text || '').join('\n')
+            : '';
 
         return {
           role: msg.role,
@@ -178,11 +93,7 @@ export class SessionReader {
         };
       });
 
-    if (options?.limit) {
-      messages = messages.slice(-options.limit);
-    }
-
-    return messages;
+    return options?.limit ? messages.slice(-options.limit) : messages;
   }
 
   getToolCalls(sessionId: string): ToolCallRecord[] {
@@ -217,7 +128,7 @@ export class SessionReader {
     const events = this.getEvents(sessionId);
     for (const e of events) {
       if (e.state_update?.updates?.file_track_status) {
-        return e.state_update.updates.file_track_status;
+        return e.state_update.updates.file_track_status as FileTrackStatus;
       }
     }
     return {};
@@ -230,10 +141,8 @@ export class SessionReader {
 
   findSessionByTopic(topic: string): SessionMeta | null {
     const sessions = this.listSessions();
-    const match = sessions.find(s =>
-      s.metadata.title.toLowerCase().includes(topic.toLowerCase())
-    );
-    return match || null;
+    const lowerTopic = topic.toLowerCase();
+    return sessions.find(s => s.metadata.title.toLowerCase().includes(lowerTopic)) || null;
   }
 
   getContextSummary(sessionId: string): string {
@@ -243,48 +152,53 @@ export class SessionReader {
     const conversation = this.getConversation(sessionId, { limit: 20 });
     const toolCalls = this.getToolCalls(sessionId);
 
-    let summary = `## 会话: ${meta.metadata.title}\n`;
-    summary += `- ID: ${meta.id}\n`;
-    summary += `- 工作目录: ${meta.metadata.cwd}\n`;
-    summary += `- 模型: ${meta.metadata.model_name}\n`;
-    summary += `- 权限模式: ${meta.metadata.permission_mode}\n`;
-    summary += `- 创建时间: ${meta.created_at}\n`;
-    summary += `- 更新时间: ${meta.updated_at}\n\n`;
+    const sections: string[] = [
+      `## 会话: ${meta.metadata.title}`,
+      `- ID: ${meta.id}`,
+      `- 工作目录: ${meta.metadata.cwd}`,
+      `- 模型: ${meta.metadata.model_name}`,
+      `- 权限模式: ${meta.metadata.permission_mode}`,
+      `- 创建时间: ${meta.created_at}`,
+      `- 更新时间: ${meta.updated_at}`,
+      '',
+      `### 最近对话 (${conversation.length} 条消息)`,
+    ];
 
-    summary += `### 最近对话 (${conversation.length} 条消息)\n`;
     for (const msg of conversation) {
       const content = msg.content.length > 200
         ? msg.content.substring(0, 200) + '...'
         : msg.content;
-      summary += `**${msg.role}**: ${content}`;
+      let line = `**${msg.role}**: ${content}`;
       if (msg.toolCalls?.length) {
-        summary += ` [调用工具: ${msg.toolCalls.join(', ')}]`;
+        line += ` [调用工具: ${msg.toolCalls.join(', ')}]`;
       }
-      summary += '\n\n';
+      sections.push(line);
+      sections.push('');
     }
 
-    summary += `### 工具调用统计 (${toolCalls.length} 次)\n`;
-    const toolStats: Record<string, number> = {};
-    for (const tc of toolCalls) {
-      toolStats[tc.name] = (toolStats[tc.name] || 0) + 1;
-    }
+    sections.push(`### 工具调用统计 (${toolCalls.length} 次)`);
+    const toolStats = this.countToolCalls(toolCalls);
     for (const [name, count] of Object.entries(toolStats)) {
-      summary += `- ${name}: ${count} 次\n`;
+      sections.push(`- ${name}: ${count} 次`);
     }
 
-    return summary;
+    return sections.join('\n');
+  }
+
+  private countToolCalls(toolCalls: ToolCallRecord[]): Record<string, number> {
+    return toolCalls.reduce<Record<string, number>>((stats, tc) => {
+      stats[tc.name] = (stats[tc.name] || 0) + 1;
+      return stats;
+    }, {});
   }
 
   getHistory(): Array<{ content: string; mode: string; timestamp: string }> {
     if (!fs.existsSync(this.historyFile)) return [];
 
-    const lines = fs.readFileSync(this.historyFile, 'utf-8').split('\n');
-    return lines
+    return fs.readFileSync(this.historyFile, 'utf-8')
+      .split('\n')
       .filter(line => line.trim())
-      .map(line => {
-        try { return JSON.parse(line); }
-        catch { return null; }
-      })
+      .map(line => this.parseJson<{ content: string; mode: string; timestamp: string }>(line))
       .filter((h): h is { content: string; mode: string; timestamp: string } => h !== null);
   }
 
@@ -302,5 +216,13 @@ export class SessionReader {
 
   getSessionsDir(): string {
     return this.sessionsDir;
+  }
+
+  private parseJson<T>(line: string): T | null {
+    try {
+      return JSON.parse(line) as T;
+    } catch {
+      return null;
+    }
   }
 }

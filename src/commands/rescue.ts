@@ -28,7 +28,6 @@ function getLastError(): string | null {
 
 function getGitStatus(): string {
   try {
-    // Fixed command, no user input - safe
     return execSync('git status --short', { encoding: 'utf-8' }).trim();
   } catch {
     return '';
@@ -43,7 +42,50 @@ function getRecentChanges(): string {
   }
 }
 
-export async function rescue(args: string[]) {
+function collectDiagnostics(): {
+  lastError: string | null;
+  gitStatus: string;
+  recentChanges: string;
+} {
+  return {
+    lastError: getLastError(),
+    gitStatus: getGitStatus(),
+    recentChanges: getRecentChanges(),
+  };
+}
+
+function formatDiagnosticContext(context: {
+  lastError: string | null;
+  gitStatus: string;
+  recentChanges: string;
+  userContext: string;
+}): string {
+  const parts: string[] = [
+    '作为 Trae Agent 的故障诊断助手，请分析以下失败上下文并提供恢复建议：',
+    '',
+  ];
+
+  if (context.lastError) {
+    parts.push(`错误输出:\n${context.lastError}`);
+  }
+  if (context.gitStatus) {
+    parts.push(`Git 状态:\n${context.gitStatus}`);
+  }
+  if (context.userContext) {
+    parts.push(`附加上下文:\n${context.userContext}`);
+  }
+
+  parts.push(
+    '请提供:',
+    '1. 问题诊断: 可能的原因是什么？',
+    '2. 恢复建议: 应该尝试什么操作？',
+    '3. 预防建议: 如何避免类似问题？',
+  );
+
+  return parts.join('\n');
+}
+
+export async function rescue(args: string[]): Promise<void> {
   let context = '';
 
   for (let i = 0; i < args.length; i++) {
@@ -56,26 +98,24 @@ export async function rescue(args: string[]) {
   console.log('Rescue Mode');
   console.log('─'.repeat(40));
 
-  const lastError = getLastError();
-  const gitStatus = getGitStatus();
-  const recentChanges = getRecentChanges();
+  const diagnostics = collectDiagnostics();
 
   console.log('收集故障信息...');
 
-  if (lastError) {
+  if (diagnostics.lastError) {
     console.log('\n最近错误:');
-    const errorLines = lastError.split('\n').slice(-10);
+    const errorLines = diagnostics.lastError.split('\n').slice(-10);
     console.log(errorLines.join('\n'));
   }
 
-  if (gitStatus) {
+  if (diagnostics.gitStatus) {
     console.log('\n当前变更:');
-    console.log(gitStatus);
+    console.log(diagnostics.gitStatus);
   }
 
-  if (recentChanges) {
+  if (diagnostics.recentChanges) {
     console.log('\n最近提交:');
-    console.log(recentChanges);
+    console.log(diagnostics.recentChanges);
   }
 
   if (context) {
@@ -85,16 +125,10 @@ export async function rescue(args: string[]) {
 
   console.log('\n正在分析问题...');
 
-  const diagnosisPrompt = `作为 Trae Agent 的故障诊断助手，请分析以下失败上下文并提供恢复建议：
-
-${lastError ? `错误输出:\n${lastError}\n` : ''}
-${gitStatus ? `Git 状态:\n${gitStatus}\n` : ''}
-${context ? `附加上下文:\n${context}\n` : ''}
-
-请提供:
-1. 问题诊断: 可能的原因是什么？
-2. 恢复建议: 应该尝试什么操作？
-3. 预防建议: 如何避免类似问题？`;
+  const diagnosisPrompt = formatDiagnosticContext({
+    ...diagnostics,
+    userContext: context,
+  });
 
   try {
     console.log('─'.repeat(40));

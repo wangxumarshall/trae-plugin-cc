@@ -3,21 +3,7 @@ import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { buildSpawnEnv } from './env';
 import { getTraeCliConfigPath } from '../config';
-
-interface TraeCliConfig {
-  model?: { name: string };
-  allowed_tools?: string[];
-  plugins?: Array<{ name: string; type: string; source: string; enabled: boolean }>;
-  trae_login_base_url?: string;
-}
-
-export interface AuthStatus {
-  authenticated: boolean;
-  model: string;
-  loginUrl: string;
-  configPath: string;
-  configExists: boolean;
-}
+import { TraeCliConfig, AuthStatus } from '../types';
 
 export class AuthBridge {
   private configPath: string;
@@ -84,5 +70,9 @@ export class AuthBridge {
 
   buildSpawnEnv(): NodeJS.ProcessEnv {
     return buildSpawnEnv();
+  }
+
+  clearCache(): void {
+    this.config = null;
   }
 }

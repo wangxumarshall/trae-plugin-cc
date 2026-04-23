@@ -1,10 +1,11 @@
 import { TraeExecutor, TraeTaskConfig } from '../utils/trae-executor';
 import { ContextBridge } from '../utils/context-bridge';
+import { parseBool, parseValue, parseMultiValue, getNonFlagArgs } from '../utils/args';
 
 const executor = new TraeExecutor();
 const bridge = new ContextBridge();
 
-export async function runTask(args: string[]) {
+export async function runTask(args: string[]): Promise<void> {
   const config: TraeTaskConfig = { prompt: '' };
   const promptParts: string[] = [];
 
@@ -59,8 +60,7 @@ export async function runTask(args: string[]) {
       }
       i++;
     } else if (arg === '--inject-context' && args[i + 1]) {
-      const sessionId = args[i + 1];
-      const context = bridge.buildContextFromSession(sessionId);
+      const context = bridge.buildContextFromSession(args[i + 1]);
       if (context) {
         promptParts.push(context);
       }
@@ -74,13 +74,13 @@ export async function runTask(args: string[]) {
 
   if (!config.prompt) {
     console.log('请提供要执行的任务描述，例如:');
-    console.log('  /trae:run "重构用户模块"');
-    console.log('  /trae:run "修复bug" --yolo');
-    console.log('  /trae:run "继续任务" --resume');
-    console.log('  /trae:run "新任务" --session-id my-session');
-    console.log('  /trae:run "隔离开发" --worktree');
-    console.log('  /trae:run "任务" --json');
-    console.log('  /trae:run "任务" --inject-context <session-id>');
+    console.log('  run "重构用户模块"');
+    console.log('  run "修复bug" --yolo');
+    console.log('  run "继续任务" --resume');
+    console.log('  run "新任务" --session-id my-session');
+    console.log('  run "隔离开发" --worktree');
+    console.log('  run "任务" --json');
+    console.log('  run "任务" --inject-context <session-id>');
     return;
   }
 
@@ -94,24 +94,20 @@ export async function runTask(args: string[]) {
 
   console.log('正将任务委托给 Trae Agent...');
 
-  try {
-    const result = await executor.execute(config);
+  const result = await executor.execute(config);
 
-    if (config.jsonOutput && result.jsonOutput) {
-      console.log('\n## 结构化输出\n');
-      console.log(JSON.stringify(result.jsonOutput, null, 2));
-      if (result.sessionId) {
-        console.log(`\n会话 ID: ${result.sessionId}`);
-      }
-    } else if (config.background) {
-      console.log('\n' + result.output);
-    } else {
-      if (result.sessionId) {
-        console.log(`\n会话 ID: ${result.sessionId}`);
-        console.log(`使用 /trae:run "继续" --resume ${result.sessionId} 恢复该会话`);
-      }
+  if (config.jsonOutput && result.jsonOutput) {
+    console.log('\n结构化输出\n');
+    console.log(JSON.stringify(result.jsonOutput, null, 2));
+    if (result.sessionId) {
+      console.log(`\n会话 ID: ${result.sessionId}`);
     }
-  } catch (error: any) {
-    console.error('任务执行出错:', error.message);
+  } else if (config.background) {
+    console.log('\n' + result.output);
+  } else {
+    if (result.sessionId) {
+      console.log(`\n会话 ID: ${result.sessionId}`);
+      console.log(`使用 run "继续" --resume ${result.sessionId} 恢复该会话`);
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -23,13 +23,13 @@ export async function isTraeCliInstalled(): Promise<boolean> {
   }
 }
 
-export async function getGitDiff(baseBranch: string = 'main'): Promise<string> {
+export async function getGitDiff(baseBranch = 'main'): Promise<string> {
   const safeBase = isSafeGitRef(baseBranch) ? baseBranch : 'main';
 
   try {
     const { stdout } = await execAsync(`git diff ${safeBase}...HEAD`);
     return stdout;
-  } catch (error) {
+  } catch {
     try {
       const { stdout } = await execAsync('git diff');
       return stdout;
@@ -39,11 +39,35 @@ export async function getGitDiff(baseBranch: string = 'main'): Promise<string> {
   }
 }
 
-export function ensurePluginDir() {
+export function ensurePluginDir(): void {
   if (!fs.existsSync(PLUGIN_DIR)) {
     fs.mkdirSync(PLUGIN_DIR, { recursive: true });
   }
 }
+
+export type {
+  TraeTaskConfig,
+  TraeTaskResult,
+  SessionMeta,
+  SessionEvent,
+  ConversationMessage,
+  ToolCallRecord,
+  FileTrackStatus,
+  DataSource,
+  AuthStatus,
+  TraeCliConfig,
+  DiffEstimate,
+  AcpInitializeResult,
+  AcpSessionNewResult,
+  AcpSessionUpdate,
+  AcpSessionPromptResult,
+  ResumedPrompt,
+  BackgroundJob,
+  LogLevel,
+  LogEntry,
+  HookType,
+  HookEntry,
+} from './types';
 
 export { SessionReader } from './utils/session-reader';
 export { AuthBridge } from './utils/auth-bridge';

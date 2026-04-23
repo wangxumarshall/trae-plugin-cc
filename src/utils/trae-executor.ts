@@ -3,34 +3,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AuthBridge } from './auth-bridge';
 import { getPluginDir } from '../config';
-
-export interface TraeTaskConfig {
-  prompt: string;
-  background?: boolean;
-  jsonOutput?: boolean;
-  yolo?: boolean;
-  allowedTools?: string[];
-  disallowedTools?: string[];
-  sessionId?: string;
-  resume?: string;
-  worktree?: string;
-  queryTimeout?: string;
-  bashToolTimeout?: string;
-  configOverrides?: Record<string, string>;
-}
-
-export interface TraeTaskResult {
-  taskId: string;
-  output: string;
-  exitCode: number | null;
-  sessionId?: string;
-  duration: number;
-  jsonOutput?: any;
-}
+import { TraeTaskConfig, TraeTaskResult } from '../types';
 
 const PLUGIN_DIR = getPluginDir();
 
-function ensurePluginDir() {
+function ensurePluginDir(): void {
   if (!fs.existsSync(PLUGIN_DIR)) {
     fs.mkdirSync(PLUGIN_DIR, { recursive: true });
   }
@@ -63,13 +40,13 @@ export class TraeExecutor {
   private buildArgs(config: TraeTaskConfig): string[] {
     const args: string[] = [];
 
-    if (config.allowedTools) {
+    if (config.allowedTools?.length) {
       for (const tool of config.allowedTools) {
         args.push('--allowed-tool', tool);
       }
     }
 
-    if (config.disallowedTools) {
+    if (config.disallowedTools?.length) {
       for (const tool of config.disallowedTools) {
         args.push('--disallowed-tool', tool);
       }
@@ -79,6 +56,7 @@ export class TraeExecutor {
     if (config.queryTimeout) args.push('--query-timeout', config.queryTimeout);
     if (config.bashToolTimeout) args.push('--bash-tool-timeout', config.bashToolTimeout);
     if (config.sessionId) args.push('--session-id', config.sessionId);
+
     if (config.resume) {
       if (config.resume === 'AUTO') {
         args.push('--resume');
@@ -86,6 +64,7 @@ export class TraeExecutor {
         args.push('--resume', config.resume);
       }
     }
+
     if (config.worktree) {
       if (config.worktree === '__auto__') {
         args.push('--worktree');
@@ -95,8 +74,8 @@ export class TraeExecutor {
     }
 
     if (config.configOverrides) {
-      for (const [k, v] of Object.entries(config.configOverrides)) {
-        args.push('-c', `${k}=${v}`);
+      for (const [key, value] of Object.entries(config.configOverrides)) {
+        args.push('-c', `${key}=${value}`);
       }
     }
 
@@ -112,8 +91,12 @@ export class TraeExecutor {
   }
 
   private executeBackground(
-    args: string[], env: NodeJS.ProcessEnv, taskId: string,
-    logFile: string, pidFile: string, startTime: number
+    args: string[],
+    env: NodeJS.ProcessEnv,
+    taskId: string,
+    logFile: string,
+    pidFile: string,
+    startTime: number,
   ): TraeTaskResult {
     const out = fs.openSync(logFile, 'a');
     const err = fs.openSync(logFile, 'a');
@@ -139,9 +122,13 @@ export class TraeExecutor {
   }
 
   private executeForeground(
-    args: string[], env: NodeJS.ProcessEnv, taskId: string,
-    logFile: string, pidFile: string, startTime: number,
-    parseJson: boolean = false
+    args: string[],
+    env: NodeJS.ProcessEnv,
+    taskId: string,
+    logFile: string,
+    pidFile: string,
+    startTime: number,
+    parseJson = false,
   ): Promise<TraeTaskResult> {
     return new Promise((resolve, reject) => {
       const child = spawn('trae-cli', args, {
@@ -156,20 +143,20 @@ export class TraeExecutor {
       let combinedOutput = '';
       let settled = false;
 
-      const append = (chunk: Buffer) => {
+      const append = (chunk: Buffer): void => {
         const text = chunk.toString();
         combinedOutput += text;
         fs.appendFileSync(logFile, text);
       };
 
-      const settle = (result: TraeTaskResult) => {
+      const settle = (result: TraeTaskResult): void => {
         if (settled) return;
         settled = true;
         if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
         resolve(result);
       };
 
-      const fail = (error: Error) => {
+      const fail = (error: Error): void => {
         if (settled) return;
         settled = true;
         if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
@@ -179,7 +166,7 @@ export class TraeExecutor {
 
       const TIMEOUT_MS = 5 * 60 * 1000;
       const timeout = setTimeout(() => {
-        fail(new Error(`任务执行超时 (300s)`));
+        fail(new Error('任务执行超时 (300s)'));
       }, TIMEOUT_MS);
 
       child.stdout?.on('data', append);
@@ -193,14 +180,17 @@ export class TraeExecutor {
       child.on('close', (code) => {
         clearTimeout(timeout);
 
-        let jsonOutput: any = undefined;
+        let jsonOutput: Record<string, unknown> | undefined;
         let sessionId: string | undefined;
 
         if (parseJson && combinedOutput.trim()) {
           try {
-            jsonOutput = JSON.parse(combinedOutput);
-            sessionId = jsonOutput?.session_id;
-          } catch {}
+            const parsed = JSON.parse(combinedOutput);
+            jsonOutput = parsed;
+            sessionId = parsed?.session_id;
+          } catch {
+            // Not valid JSON, skip parsing
+          }
         }
 
         settle({
@@ -215,3 +205,4 @@ export class TraeExecutor {
     });
   }
 }
+

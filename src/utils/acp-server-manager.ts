@@ -1,47 +1,36 @@
 import { spawn, ChildProcess } from 'child_process';
-import { AcpClient } from '../utils/acp-client';
+import { AcpClient } from './acp-client';
 import { buildSpawnEnv } from './env';
 
-type StartupEvent = {
+interface StartupEvent {
   at: string;
   event: string;
   detail?: string;
-};
+}
+
+interface StartOptions {
+  yolo?: boolean;
+  allowedTools?: string[];
+  disabledTools?: string[];
+}
 
 export class AcpServerManager {
   private process: ChildProcess | null = null;
   private client: AcpClient | null = null;
 
-  async start(options?: { yolo?: boolean; allowedTools?: string[]; disabledTools?: string[] }): Promise<{
-    client: AcpClient;
-  }> {
+  async start(options?: StartOptions): Promise<{ client: AcpClient }> {
     if (this.isRunning()) {
-      return {
-        client: this.client!,
-      };
+      return { client: this.client! };
     }
 
     return new Promise((resolve, reject) => {
-      const args: string[] = ['acp', 'serve'];
-
-      if (options?.yolo) args.push('--yolo');
-      if (options?.allowedTools) {
-        for (const tool of options.allowedTools) {
-          args.push('--allowed-tool', tool);
-        }
-      }
-      if (options?.disabledTools) {
-        for (const tool of options.disabledTools) {
-          args.push('--disabled-tool', tool);
-        }
-      }
-
+      const args = this.buildArgs(options);
       const startupEvents: StartupEvent[] = [];
       const outputSnippets: string[] = [];
       let started = false;
       let settled = false;
 
-      const recordEvent = (event: string, detail?: string) => {
+      const recordEvent = (event: string, detail?: string): void => {
         startupEvents.push({
           at: new Date().toISOString(),
           event,
@@ -49,14 +38,14 @@ export class AcpServerManager {
         });
       };
 
-      const rememberOutput = (source: 'stdout' | 'stderr', text: string) => {
+      const rememberOutput = (source: 'stdout' | 'stderr', text: string): void => {
         const normalized = text.replace(/\s+/g, ' ').trim();
         if (!normalized) return;
         outputSnippets.push(`[${source}] ${normalized}`);
         if (outputSnippets.length > 8) outputSnippets.shift();
       };
 
-      const buildDiagnostic = () => {
+      const buildDiagnostic = (): string => {
         const trace = startupEvents
           .map((item, idx) => `${idx + 1}. ${item.at} ${item.event}${item.detail ? ` | ${item.detail}` : ''}`)
           .join('\n');
@@ -66,16 +55,16 @@ export class AcpServerManager {
         return `\n[ACP] startup diagnostics\ntrace:\n${trace || 'none'}\nrecent_output:\n${recentOutput}`;
       };
 
-      const fail = (message: string) => {
+      const fail = (message: string): void => {
         if (settled) return;
         settled = true;
         reject(new Error(`${message}${buildDiagnostic()}`));
       };
 
-      const succeed = () => {
+      const succeed = (): void => {
         if (settled) return;
         settled = true;
-        const client = new AcpClient(child.stdin!, child.stdout!, child.stderr!);
+        const client = new AcpClient(child.stdin!, child.stdout!);
         this.process = child;
         this.client = client;
         recordEvent('stdio:ready');
@@ -86,8 +75,6 @@ export class AcpServerManager {
 
       recordEvent('spawn:start', `cmd=trae-cli ${args.join(' ')}`);
 
-      // 关键修复：使用 pipe 而不是 ignore, 保持 stdin 打开
-      // ACP 协议使用 STDIO JSON-RPC, 需要 stdin 保持连接
       const child = spawn('trae-cli', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
@@ -116,7 +103,6 @@ export class AcpServerManager {
         }
       });
 
-      // 等待进程启动，认证过程可能需要较长时间
       setTimeout(() => {
         if (!started && !settled) {
           const alive = child.exitCode === null;
@@ -132,6 +118,24 @@ export class AcpServerManager {
         }
       }, 10000);
     });
+  }
+
+  private buildArgs(options?: StartOptions): string[] {
+    const args: string[] = ['acp', 'serve'];
+
+    if (options?.yolo) args.push('--yolo');
+    if (options?.allowedTools?.length) {
+      for (const tool of options.allowedTools) {
+        args.push('--allowed-tool', tool);
+      }
+    }
+    if (options?.disabledTools?.length) {
+      for (const tool of options.disabledTools) {
+        args.push('--disabled-tool', tool);
+      }
+    }
+
+    return args;
   }
 
   async stop(): Promise<void> {
@@ -159,10 +163,7 @@ export class AcpServerManager {
     return this.client;
   }
 
-  getStatus(): {
-    running: boolean;
-    baseUrl: string;
-  } {
+  getStatus(): { running: boolean; baseUrl: string } {
     return {
       running: this.isRunning(),
       baseUrl: this.isRunning() ? 'stdio://trae-cli' : '',

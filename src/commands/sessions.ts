@@ -1,61 +1,63 @@
 import { SessionReader } from '../utils/session-reader';
 import { ContextBridge } from '../utils/context-bridge';
+import { formatEstimate } from '../utils/branch-detection';
 
 const reader = new SessionReader();
 const bridge = new ContextBridge();
 
-export async function sessions(args: string[]) {
+export async function sessions(args: string[]): Promise<void> {
   const action = args[0] || 'list';
 
-  switch (action) {
-    case 'list':
-      return listSessions(args);
-    case 'detail':
-      return detailSession(args);
-    case 'conversation':
-      return conversationSession(args);
-    case 'tools':
-      return toolsSession(args);
-    case 'context':
-      return contextSession(args);
-    case 'recent':
-      return recentSession(args);
-    case 'find':
-      return findSession(args);
-    case 'delete':
-      return deleteSession(args);
-    case 'delete-smoke':
-      return deleteSmokeSessions(args);
-    default:
-      console.log('用法: /trae:sessions <action> [options]');
-      console.log('动作:');
-      console.log('  list          列出所有会话 (默认)');
-      console.log('  recent        查看最近会话');
-      console.log('  detail <id>   查看会话详情');
-      console.log('  conversation <id>  获取对话历史');
-      console.log('  tools <id>    获取工具调用记录');
-      console.log('  context <id>  获取完整上下文摘要');
-      console.log('  find <topic>  按主题搜索会话');
-      console.log('  delete <id>   删除会话');
-      console.log('  delete-smoke  删除标题或ID包含"smoke"的会话');
+  const handlers: Record<string, (args: string[]) => void> = {
+    list: listSessions,
+    detail: detailSession,
+    conversation: conversationSession,
+    tools: toolsSession,
+    context: contextSession,
+    recent: recentSession,
+    find: findSession,
+    delete: deleteSession,
+    'delete-smoke': deleteSmokeSessions,
+  };
+
+  const handler = handlers[action];
+  if (!handler) {
+    console.log('用法: sessions <action> [options]');
+    console.log('动作:');
+    console.log('  list          列出所有会话 (默认)');
+    console.log('  recent        查看最近会话');
+    console.log('  detail <id>   查看会话详情');
+    console.log('  conversation <id>  获取对话历史');
+    console.log('  tools <id>    获取工具调用记录');
+    console.log('  context <id>  获取完整上下文摘要');
+    console.log('  find <topic>  按主题搜索会话');
+    console.log('  delete <id>   删除会话');
+    console.log('  delete-smoke  删除标题或ID包含"smoke"的会话');
+    return;
   }
+
+  handler(args);
 }
 
-function listSessions(args: string[]) {
+function parseCommonOptions(args: string[], startFrom: number): { cwd?: string; limit: number } {
   let cwd: string | undefined;
   let limit = 20;
 
-  for (let i = 1; i < args.length; i++) {
+  for (let i = startFrom; i < args.length; i++) {
     if (args[i] === '--cwd' && args[i + 1]) {
       cwd = args[i + 1];
       i++;
-    }
-    if (args[i] === '--limit' && args[i + 1]) {
+    } else if (args[i] === '--limit' && args[i + 1]) {
       limit = parseInt(args[i + 1], 10);
       i++;
     }
   }
 
+  return { cwd, limit };
+}
+
+function listSessions(args: string[]): void {
+  const { cwd, limit } = parseCommonOptions(args, 1);
   const sessions = reader.listSessions({ cwd, limit });
 
   if (sessions.length === 0) {
@@ -63,30 +65,43 @@ function listSessions(args: string[]) {
     return;
   }
 
+  const columns: TableColumn[] = [
+    { header: 'ID', width: 36, value: row => (row.id as string).substring(0, 36) },
+    { header: '模型', width: 14, value: row => (row.model_name as string).padEnd(14) },
+    {
+      header: '工作目录',
+      width: 48,
+      value: row => {
+        const p = row.cwd as string;
+        return p.length > 48 ? '...' + p.substring(p.length - 45) : p.padEnd(48);
+      },
+    },
+    {
+      header: '标题',
+      width: 30,
+      value: row => {
+        const t = row.title as string;
+        return t.length > 30 ? t.substring(0, 27) + '...' : t;
+      },
+    },
+  ];
+
+  const rows = sessions.map(s => ({
+    id: s.id,
+    model_name: s.metadata.model_name,
+    cwd: s.metadata.cwd,
+    title: s.metadata.title,
+  }));
+
   console.log(`\n找到 ${sessions.length} 个会话:\n`);
-  console.log(`  ID                                   | 模型          | 工作目录                                         | 标题`);
-  console.log(`  ${'-'.repeat(36)}-+-${'-'.repeat(14)}-+-${'-'.repeat(48)}-+-${'-'.repeat(30)}`);
-
-  for (const s of sessions) {
-    const shortId = s.id.substring(0, 36);
-    const model = s.metadata.model_name.padEnd(14);
-    const cwd = s.metadata.cwd.length > 48
-      ? '...' + s.metadata.cwd.substring(s.metadata.cwd.length - 45)
-      : s.metadata.cwd.padEnd(48);
-    const title = s.metadata.title.length > 30
-      ? s.metadata.title.substring(0, 27) + '...'
-      : s.metadata.title;
-
-    console.log(`  ${shortId} | ${model} | ${cwd} | ${title}`);
-  }
-
-  console.log(`\n使用 /trae:sessions detail <id> 查看详情`);
+  console.log(formatTable(columns, rows));
+  console.log('\n使用 sessions detail <id> 查看详情');
 }
 
-function detailSession(args: string[]) {
+function detailSession(args: string[]): void {
   const sessionId = args[1];
   if (!sessionId) {
-    console.log('请提供会话 ID: /trae:sessions detail <session-id>');
+    console.log('请提供会话 ID: sessions detail <session-id>');
     return;
   }
 
@@ -96,7 +111,7 @@ function detailSession(args: string[]) {
     return;
   }
 
-  console.log('\n## 会话详情\n');
+  console.log('\n会话详情\n');
   console.log(`  ID:       ${meta.id}`);
   console.log(`  标题:     ${meta.metadata.title}`);
   console.log(`  工作目录: ${meta.metadata.cwd}`);
@@ -109,7 +124,7 @@ function detailSession(args: string[]) {
   const eventTypes: Record<string, number> = {};
   for (const e of events) {
     for (const key of ['message', 'tool_call', 'tool_call_output', 'state_update', 'agent_start']) {
-      if ((e as any)[key]) {
+      if ((e as Record<string, unknown>)[key]) {
         eventTypes[key] = (eventTypes[key] || 0) + 1;
       }
     }
@@ -121,21 +136,15 @@ function detailSession(args: string[]) {
   }
 }
 
-function conversationSession(args: string[]) {
+function conversationSession(args: string[]): void {
   const sessionId = args[1];
   if (!sessionId) {
-    console.log('请提供会话 ID: /trae:sessions conversation <session-id>');
+    console.log('请提供会话 ID: sessions conversation <session-id>');
     return;
   }
 
-  let limit = 50;
-  for (let i = 2; i < args.length; i++) {
-    if (args[i] === '--limit' && args[i + 1]) {
-      limit = parseInt(args[i + 1], 10);
-      i++;
-    }
-  }
-
+  const [, , ...rest] = args;
+  const { limit } = parseCommonOptions(rest, 0);
   const messages = reader.getConversation(sessionId, { limit });
 
   if (messages.length === 0) {
@@ -143,27 +152,27 @@ function conversationSession(args: string[]) {
     return;
   }
 
-  console.log(`\n## 对话历史 (${messages.length} 条消息)\n`);
+  console.log(`\n对话历史 (${messages.length} 条消息)\n`);
 
   for (const msg of messages) {
-    const roleLabel = msg.role === 'user' ? '👤 用户' : '🤖 助手';
+    const roleLabel = msg.role === 'user' ? '用户' : '助手';
     const content = msg.content.length > 500
       ? msg.content.substring(0, 500) + '...'
       : msg.content;
 
-    console.log(`**${roleLabel}** [${msg.timestamp}]:`);
+    console.log(`${roleLabel} [${msg.timestamp}]:`);
     console.log(`${content}`);
     if (msg.toolCalls?.length) {
-      console.log(`  📎 调用工具: ${msg.toolCalls.join(', ')}`);
+      console.log(`  调用工具: ${msg.toolCalls.join(', ')}`);
     }
     console.log('');
   }
 }
 
-function toolsSession(args: string[]) {
+function toolsSession(args: string[]): void {
   const sessionId = args[1];
   if (!sessionId) {
-    console.log('请提供会话 ID: /trae:sessions tools <session-id>');
+    console.log('请提供会话 ID: sessions tools <session-id>');
     return;
   }
 
@@ -174,26 +183,26 @@ function toolsSession(args: string[]) {
     return;
   }
 
-  console.log(`\n## 工具调用记录 (${toolCalls.length} 次)\n`);
+  console.log(`\n工具调用记录 (${toolCalls.length} 次)\n`);
 
   const toolStats: Record<string, number> = {};
   for (const tc of toolCalls) {
     toolStats[tc.name] = (toolStats[tc.name] || 0) + 1;
   }
 
-  console.log('### 统计');
+  console.log('统计');
   for (const [name, count] of Object.entries(toolStats).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${name}: ${count} 次`);
   }
 
-  console.log('\n### 详细记录\n');
+  console.log('\n详细记录\n');
   for (const tc of toolCalls.slice(0, 30)) {
     const inputStr = typeof tc.input === 'string'
       ? tc.input.substring(0, 100)
       : JSON.stringify(tc.input).substring(0, 100);
-    const status = tc.isError ? '❌' : '✅';
+    const status = tc.isError ? '错误' : '成功';
 
-    console.log(`${status} **${tc.name}** [${tc.timestamp}]`);
+    console.log(`${status} ${tc.name} [${tc.timestamp}]`);
     console.log(`  输入: ${inputStr}${inputStr.length >= 100 ? '...' : ''}`);
     if (tc.output) {
       const outputStr = typeof tc.output === 'string'
@@ -205,10 +214,10 @@ function toolsSession(args: string[]) {
   }
 }
 
-function contextSession(args: string[]) {
+function contextSession(args: string[]): void {
   const sessionId = args[1];
   if (!sessionId) {
-    console.log('请提供会话 ID: /trae:sessions context <session-id>');
+    console.log('请提供会话 ID: sessions context <session-id>');
     return;
   }
 
@@ -216,14 +225,9 @@ function contextSession(args: string[]) {
   console.log(summary);
 }
 
-function recentSession(args: string[]) {
-  let cwd: string | undefined;
-  for (let i = 1; i < args.length; i++) {
-    if (args[i] === '--cwd' && args[i + 1]) {
-      cwd = args[i + 1];
-      i++;
-    }
-  }
+function recentSession(args: string[]): void {
+  const [, , ...rest] = args;
+  const { cwd } = parseCommonOptions(rest, 0);
 
   const recent = reader.getRecentSession(cwd);
   if (!recent) {
@@ -231,19 +235,19 @@ function recentSession(args: string[]) {
     return;
   }
 
-  console.log('\n## 最近会话\n');
+  console.log('\n最近会话\n');
   console.log(`  ID:       ${recent.id}`);
   console.log(`  标题:     ${recent.metadata.title}`);
   console.log(`  工作目录: ${recent.metadata.cwd}`);
   console.log(`  模型:     ${recent.metadata.model_name}`);
   console.log(`  更新时间: ${recent.updated_at}`);
-  console.log(`\n使用 /trae:run "继续" --resume ${recent.id} 恢复该会话`);
+  console.log(`\n使用 run "继续" --resume ${recent.id} 恢复该会话`);
 }
 
-function findSession(args: string[]) {
+function findSession(args: string[]): void {
   const topic = args.slice(1).join(' ');
   if (!topic) {
-    console.log('请提供搜索关键词: /trae:sessions find <topic>');
+    console.log('请提供搜索关键词: sessions find <topic>');
     return;
   }
 
@@ -253,7 +257,7 @@ function findSession(args: string[]) {
     return;
   }
 
-  console.log('\n## 找到匹配会话\n');
+  console.log('\n找到匹配会话\n');
   console.log(`  ID:       ${match.id}`);
   console.log(`  标题:     ${match.metadata.title}`);
   console.log(`  工作目录: ${match.metadata.cwd}`);
@@ -261,10 +265,10 @@ function findSession(args: string[]) {
   console.log(`  更新时间: ${match.updated_at}`);
 }
 
-function deleteSession(args: string[]) {
+function deleteSession(args: string[]): void {
   const sessionId = args[1];
   if (!sessionId) {
-    console.log('请提供会话 ID: /trae:sessions delete <session-id>');
+    console.log('请提供会话 ID: sessions delete <session-id>');
     return;
   }
 
@@ -276,11 +280,11 @@ function deleteSession(args: string[]) {
   }
 }
 
-function deleteSmokeSessions(args: string[]) {
+function deleteSmokeSessions(args: string[]): void {
   const allSessions = reader.listSessions();
   const smokeSessions = allSessions.filter(s =>
     s.id.toLowerCase().includes('smoke') ||
-    s.metadata.title.toLowerCase().includes('smoke')
+    s.metadata.title.toLowerCase().includes('smoke'),
   );
 
   if (smokeSessions.length === 0) {
@@ -306,4 +310,31 @@ function deleteSmokeSessions(args: string[]) {
   }
 
   console.log(`\n删除完成: 成功 ${deleted} 个，失败 ${failed} 个`);
+}
+
+function formatTable(columns: TableColumn[], rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return '';
+
+  const headers = columns.map(col => col.header);
+  const lines: string[] = [];
+
+  lines.push(headers.join(' | '));
+  lines.push(columns.map(col => '-'.repeat(col.width)).join('-+-'));
+
+  for (const row of rows) {
+    const cells = columns.map(col => {
+      const value = col.value(row);
+      if (value.length <= col.width) return value.padEnd(col.width);
+      return value.substring(0, col.width - 3) + '...';
+    });
+    lines.push(cells.join(' | '));
+  }
+
+  return lines.join('\n');
+}
+
+interface TableColumn {
+  header: string;
+  width: number;
+  value: (row: Record<string, unknown>) => string;
 }
