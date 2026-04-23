@@ -1,0 +1,89 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4f2536ae2603",
+  "session_id": "ses_24a819f3affeUFp9xPgIgkB8nM",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-23T01:11:41.55132Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/commands/review.ts",
+    "src/commands/run.ts",
+    "src/commands/setup.ts",
+    "src/utils.ts",
+    "src/utils/acp-client.ts",
+    "src/utils/acp-server-manager.ts",
+    "src/utils/auth-bridge.ts",
+    "src/utils/branch-detection.ts",
+    "src/utils/context-bridge.ts",
+    "src/utils/env.ts",
+    "src/utils/session-reader.ts",
+    "src/utils/trae-executor.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "Qwen3.6-Plus",
+  "turn_id": "fd0dd6ab6c50",
+  "token_usage": {
+    "input_tokens": 175720,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 1845,
+    "api_call_count": 6
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-23T01:11:41.546663Z",
+    "agent_lines": 0,
+    "agent_removed": 66,
+    "human_added": 0,
+    "human_modified": 372,
+    "human_removed": 166,
+    "total_committed": 86,
+    "total_lines_changed": 829,
+    "agent_percentage": 7.961399276236429,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1021,
+      "user_lines_removed": 538,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".opencode/plans/refactor-findings.md": 148,
+        ".opencode/plans/refactor-progress.md": 26,
+        "src/commands/run.ts": 23,
+        "src/commands/setup.ts": 47,
+        "src/formatters/table.ts": 44,
+        "src/logger.ts": 80,
+        "src/types/index.ts": 235,
+        "src/utils.ts": 4,
+        "src/utils/acp-client.ts": 35,
+        "src/utils/acp-server-manager.ts": 37,
+        "src/utils/args.ts": 55,
+        "src/utils/auth-bridge.ts": 5,
+        "src/utils/branch-detection.ts": 122,
+        "src/utils/context-bridge.ts": 33,
+        "src/utils/env.ts": 11,
+        "src/utils/session-reader.ts": 82,
+        "src/utils/trae-executor.ts": 34
+      },
+      "user_removed_per_file": {
+        "src/commands/run.ts": 27,
+        "src/commands/setup.ts": 37,
+        "src/utils.ts": 4,
+        "src/utils/acp-client.ts": 67,
+        "src/utils/acp-server-manager.ts": 36,
+        "src/utils/auth-bridge.ts": 15,
+        "src/utils/branch-detection.ts": 108,
+        "src/utils/context-bridge.ts": 34,
+        "src/utils/env.ts": 8,
+        "src/utils/session-reader.ts": 160,
+        "src/utils/trae-executor.ts": 42
+      }
+    }
+  ]
+}

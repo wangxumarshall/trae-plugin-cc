@@ -1,0 +1,14 @@
+I need to find out how to add scheduled/cron-like recurring tasks in OpenCode (opencode.ai). Research the following in parallel:
+
+1. Read all files in .opencode/ directory structure to understand available hooks and plugins
+2. Read .opencode/plugins/trae-hooks.ts to understand the current event hook pattern
+3. Search the entire project for any keywords related to scheduling, cron, timer, interval, periodic, schedule
+4. Search online for "opencode.ai scheduled tasks" or "opencode cron" or "opencode scheduled triggers"
+5. Read .opencode/package.json and any OpenCode plugin documentation available locally
+
+Return:
+- Whether OpenCode has a built-in scheduling/cron mechanism
+- What events/hooks are currently supported
+- Possible approaches to implement scheduled triggering (e.g., using event hooks, external cron + CLI, or plugin extensions)
+- Any relevant API or configuration options found in the codebase or docs
+- Concrete implementation suggestions based on the findings

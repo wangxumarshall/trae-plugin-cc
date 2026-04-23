@@ -1,0 +1,893 @@
+{
+  "info": {
+    "id": "ses_24a819f3affeUFp9xPgIgkB8nM",
+    "slug": "misty-otter",
+    "projectID": "5fcf99c1da674437167063389620ba8e552c5910",
+    "directory": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+    "parentID": "ses_24a92ddf6ffeVenHqBVGbr03C1",
+    "title": "Research OpenCode scheduling (@general subagent)",
+    "version": "1.14.20",
+    "summary": {
+      "additions": 72,
+      "deletions": 68,
+      "files": 1
+    },
+    "permission": [
+      {
+        "permission": "task",
+        "action": "deny",
+        "pattern": "*"
+      }
+    ],
+    "time": {
+      "created": 1776866451653,
+      "updated": 1776866484385
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "role": "user",
+        "time": {
+          "created": 1776866451673
+        },
+        "tools": {
+          "task": false
+        },
+        "agent": "general",
+        "model": {
+          "providerID": "volcengine-key1",
+          "modelID": "Qwen3.6-Plus"
+        },
+        "summary": {
+          "diffs": [
+            {
+              "file": "src/commands/review.ts",
+              "patch": "Index: src/commands/review.ts\n===================================================================\n--- src/commands/review.ts\t\n+++ src/commands/review.ts\t\n@@ -1,84 +1,88 @@\n import { getGitDiff } from '../utils';\n import { TraeExecutor, TraeTaskConfig } from '../utils/trae-executor';\n import { detectBaseBranch, estimateReviewSize, formatEstimate } from '../utils/branch-detection';\n \n const executor = new TraeExecutor();\n \n-export async function review(args: string[], isAdversarial: boolean = false) {\n-    let baseBranch = 'main';\n-    const config: TraeTaskConfig = { prompt: '' };\n+function parseReviewArgs(args: string[], isAdversarial: boolean): TraeTaskConfig & { baseBranch: string } {\n+  const config: TraeTaskConfig & { baseBranch: string } = { prompt: '', baseBranch: 'main' };\n \n-    for (let i = 0; i < args.length; i++) {\n-        if (args[i] === '--base' && args[i + 1]) {\n-            baseBranch = args[i + 1];\n-            i++;\n-        }\n-        if (args[i] === '--background') {\n-            config.background = true;\n-        }\n-        if (args[i] === '--yolo' || args[i] === '-y') {\n-            config.yolo = true;\n-        }\n-        if (args[i] === '--json') {\n-            config.jsonOutput = true;\n-        }\n-        if (args[i] === '--session-id' && args[i + 1]) {\n-            config.sessionId = args[i + 1];\n-            i++;\n-        }\n+  for (let i = 0; i < args.length; i++) {\n+    if (args[i] === '--base' && args[i + 1]) {\n+      config.baseBranch = args[i + 1];\n+      i++;\n+    } else if (args[i] === '--background') {\n+      config.background = true;\n+    } else if (args[i] === '--yolo' || args[i] === '-y') {\n+      config.yolo = true;\n+    } else if (args[i] === '--json') {\n+      config.jsonOutput = true;\n+    } else if (args[i] === '--session-id' && args[i + 1]) {\n+      config.sessionId = args[i + 1];\n+      i++;\n     }\n+  }\n \n-    if (!args.includes('--base')) {\n-        console.log('🔍 自动检测基准分支...');\n-        baseBranch = await detectBaseBranch();\n-    }\n+  return config;\n+}\n \n-    console.log(`📊 分析变更大小...`);\n-    const estimate = await estimateReviewSize(baseBranch);\n-    console.log(formatEstimate(estimate));\n+function buildReviewPrompt(isAdversarial: boolean, diff: string): string {\n+  const preamble = isAdversarial\n+    ? '作为一位极度严苛的对抗性代码审查员，请仔细检查以下变更。你需要专门挑刺、质疑假设、找出所有潜在的安全漏洞、性能瓶颈、逻辑错误或不符合最佳实践的地方。务必吹毛求疵，给出致命的反馈意见。'\n+    : '请对以下代码变更进行标准的专业代码审查。找出潜在的错误、性能问题、提出改进建议，并总结主要变动：';\n \n-    if (!config.background && estimate.recommendation.useBackground) {\n-        console.log('💡 自动启用后台模式 (使用 --background 覆盖)');\n-        config.background = true;\n-    }\n+  return `${preamble}\\n\\n代码变更如下:\\n\\`\\`\\`diff\\n${diff}\\n\\`\\`\\``;\n+}\n \n-    console.log(`\\n获取与 ${baseBranch} 的差异...`);\n-    const diff = await getGitDiff(baseBranch);\n+export async function review(args: string[], isAdversarial = false): Promise<void> {\n+  const parsed = parseReviewArgs(args, isAdversarial);\n \n-    if (!diff.trim()) {\n-         console.log('没有检测到任何代码变更。');\n-         return;\n-    }\n+  const baseBranch = args.includes('--base')\n+    ? parsed.baseBranch\n+    : await detectBaseBranch();\n \n-    let reviewPrompt = isAdversarial\n-        ? `作为一位极度严苛的对抗性代码审查员，请仔细检查以下变更。你需要专门挑刺、质疑假设、找出所有潜在的安全漏洞、性能瓶颈、逻辑错误或不符合最佳实践的地方。务必吹毛求疵，给出致命的反馈意见。`\n-        : `请对以下代码变更进行标准的专业代码审查。找出潜在的错误、性能问题、提出改进建议，并总结主要变动：`;\n+  console.log('自动检测基准分支...');\n \n-    config.prompt = `${reviewPrompt}\\n\\n代码变更如下:\\n\\`\\`\\`diff\\n${diff}\\n\\`\\`\\``;\n+  const estimate = await estimateReviewSize(baseBranch);\n+  console.log(formatEstimate(estimate));\n \n-    console.log('提交代码审查请求到 Trae Agent...');\n-    try {\n-        const result = await executor.execute(config);\n+  if (!parsed.background && estimate.recommendation.useBackground) {\n+    console.log('自动启用后台模式 (使用 --background 覆盖)');\n+    parsed.background = true;\n+  }\n \n-        if (config.jsonOutput && result.jsonOutput) {\n-            console.log('\\n## 结构化审查结果\\n');\n-            console.log(JSON.stringify(result.jsonOutput, null, 2));\n-        } else if (config.background) {\n-            console.log('\\n审查结果:\\n');\n-            console.log(result.output);\n-        } else {\n-            if (result.output) {\n-                console.log('\\n## 审查结果\\n');\n-                console.log(result.output);\n-            }\n-        }\n+  console.log(`获取与 ${baseBranch} 的差异...`);\n+  const diff = await getGitDiff(baseBranch);\n \n-        if (result.sessionId) {\n-            console.log(`\\n会话 ID: ${result.sessionId}`);\n-            console.log(`使用 /trae:run \"继续审查\" --resume ${result.sessionId} 恢复该会话`);\n-        }\n-    } catch (error: unknown) {\n-        console.error('审查执行出错:', error instanceof Error ? error.message : String(error));\n-        process.exit(1);\n+  if (!diff.trim()) {\n+    console.log('没有检测到任何代码变更。');\n+    return;\n+  }\n+\n+  parsed.prompt = buildReviewPrompt(isAdversarial, diff);\n+\n+  console.log('提交代码审查请求到 Trae Agent...');\n+\n+  try {\n+    const result = await executor.execute(parsed);\n+\n+    if (parsed.jsonOutput && result.jsonOutput) {\n+      console.log('\\n结构化审查结果\\n');\n+      console.log(JSON.stringify(result.jsonOutput, null, 2));\n+    } else if (parsed.background) {\n+      console.log('\\n审查结果:\\n');\n+      console.log(result.output);\n+    } else if (result.output) {\n+      console.log('\\n审查结果\\n');\n+      console.log(result.output);\n     }\n+\n+    if (result.sessionId) {\n+      console.log(`\\n会话 ID: ${result.sessionId}`);\n+      console.log(`使用 run \"继续审查\" --resume ${result.sessionId} 恢复该会话`);\n+    }\n+  } catch (error: unknown) {\n+    console.error('审查执行出错:', error instanceof Error ? error.message : String(error));\n+    process.exit(1);\n+  }\n }\n",
+              "additions": 72,
+              "deletions": 68,
+              "status": "modified"
+            }
+          ]
+        },
+        "id": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "I need to find out how to add scheduled/cron-like recurring tasks in OpenCode (opencode.ai). Research the following in parallel:\n\n1. Read all files in .opencode/ directory structure to understand available hooks and plugins\n2. Read .opencode/plugins/trae-hooks.ts to understand the current event hook pattern\n3. Search the entire project for any keywords related to scheduling, cron, timer, interval, periodic, schedule\n4. Search online for \"opencode.ai scheduled tasks\" or \"opencode cron\" or \"opencode scheduled triggers\"\n5. Read .opencode/package.json and any OpenCode plugin documentation available locally\n\nReturn:\n- Whether OpenCode has a built-in scheduling/cron mechanism\n- What events/hooks are currently supported\n- Possible approaches to implement scheduled triggering (e.g., using event hooks, external cron + CLI, or plugin extensions)\n- Any relevant API or configuration options found in the codebase or docs\n- Concrete implementation suggestions based on the findings",
+          "id": "prt_db57e60db001CAsAswPAG7g2ZA",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60d7001WJ3OXN15MaIC2B"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 12236,
+          "input": 11910,
+          "output": 304,
+          "reasoning": 22,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776866451689,
+          "completed": 1776866461807
+        },
+        "finish": "tool-calls",
+        "id": "msg_db57e60e90014HAZeryUrC70z3",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "snapshot": "917bb95f97b9aba6ef805b4ee5df9eefe1660931",
+          "type": "step-start",
+          "id": "prt_db57e719200154j2rOxQCLlchS",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "reasoning",
+          "text": "I'll research all these areas in parallel to understand OpenCode's scheduling capabilities and the current hook/plugin system.\n",
+          "time": {
+            "start": 1776866455966,
+            "end": 1776866456427
+          },
+          "id": "prt_db57e719e001ypER1sgnynMtmc",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "tool",
+          "tool": "read",
+          "callID": "call_a2c3b31655e24eef89e5b952",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode"
+            },
+            "output": "<path>/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode</path>\n<type>directory</type>\n<entries>\n.gitignore\ncommands/\nnode_modules/\npackage-lock.json\npackage.json\nplans/\nplugins/\ntools/\n\n(8 entries)\n</entries>",
+            "metadata": {
+              "preview": ".gitignore\ncommands/\nnode_modules/\npackage-lock.json\npackage.json\nplans/\nplugins/\ntools/",
+              "truncated": false,
+              "loaded": []
+            },
+            "title": ".opencode",
+            "time": {
+              "start": 1776866457019,
+              "end": 1776866457023
+            }
+          },
+          "id": "prt_db57e736c0012bpcIxPTMVeWKd",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "tool",
+          "tool": "read",
+          "callID": "call_5b9b8c1ab0f2470195b46445",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/plugins"
+            },
+            "output": "<path>/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/plugins</path>\n<type>directory</type>\n<entries>\nentire.ts\ntrae-hooks.ts\n\n(2 entries)\n</entries>",
+            "metadata": {
+              "preview": "entire.ts\ntrae-hooks.ts",
+              "truncated": false,
+              "loaded": []
+            },
+            "title": ".opencode/plugins",
+            "time": {
+              "start": 1776866457727,
+              "end": 1776866457730
+            }
+          },
+          "id": "prt_db57e76360013G7urj2yQhNN94",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "tool",
+          "tool": "read",
+          "callID": "call_b9f4fb5fff0045ae9d158152",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/package.json"
+            },
+            "output": "<path>/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/package.json</path>\n<type>file</type>\n<content>\n1: {\n2:   \"dependencies\": {\n3:     \"@opencode-ai/plugin\": \"1.14.20\"\n4:   }\n5: }\n\n(End of file - total 5 lines)\n</content>",
+            "metadata": {
+              "preview": "{\n  \"dependencies\": {\n    \"@opencode-ai/plugin\": \"1.14.20\"\n  }\n}",
+              "truncated": false,
+              "loaded": []
+            },
+            "title": ".opencode/package.json",
+            "time": {
+              "start": 1776866458570,
+              "end": 1776866458589
+            }
+          },
+          "id": "prt_db57e790a001RKCL3aN6BCgZHY",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "tool",
+          "tool": "read",
+          "callID": "call_7c05bb759ad8468aab0c2520",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/plugins/trae-hooks.ts"
+            },
+            "output": "<path>/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/plugins/trae-hooks.ts</path>\n<type>file</type>\n<content>\n1: import type { Plugin } from \"@opencode-ai/plugin\"\n2: import path from \"path\"\n3: \n4: const SCRIPTS_DIR = path.join(path.dirname(path.dirname(import.meta.dir)), \"scripts\")\n5: \n6: function hookArgs(script: string, hookType: string): string[] {\n7:   return [\"node\", path.join(SCRIPTS_DIR, script), hookType]\n8: }\n9: \n10: async function callHook(\n11:   script: string,\n12:   hookType: string,\n13:   cwd: string,\n14:   payload?: Record<string, unknown>,\n15: ) {\n16:   try {\n17:     const proc = Bun.spawn(hookArgs(script, hookType), {\n18:       cwd,\n19:       stdout: \"pipe\",\n20:       stderr: \"pipe\",\n21:       stdin: payload ? new Blob([JSON.stringify(payload) + \"\\n\"]) : undefined,\n22:     })\n23:     const stdout = await new Response(proc.stdout).text()\n24:     const stderr = await new Response(proc.stderr).text()\n25:     await proc.exited\n26:     if (stdout) console.log(`[trae:${hookType}]`, stdout.trim())\n27:     if (stderr) console.warn(`[trae:${hookType}]`, stderr.trim())\n28:   } catch (e) {\n29:     console.error(`[trae-hook:${hookType}]`, e)\n30:   }\n31: }\n32: \n33: function callHookSync(\n34:   script: string,\n35:   hookType: string,\n36:   cwd: string,\n37:   payload?: Record<string, unknown>,\n38: ) {\n39:   try {\n40:     const result = Bun.spawnSync(hookArgs(script, hookType), {\n41:       cwd,\n42:       stdout: \"pipe\",\n43:       stderr: \"pipe\",\n44:       stdin: payload ? new TextEncoder().encode(JSON.stringify(payload) + \"\\n\") : undefined,\n45:     })\n46:     const stdout = new TextDecoder().decode(result.stdout)\n47:     const stderr = new TextDecoder().decode(result.stderr)\n48:     if (stdout) console.log(`[trae:${hookType}]`, stdout.trim())\n49:     if (stderr) console.warn(`[trae:${hookType}]`, stderr.trim())\n50:   } catch (e) {\n51:     console.error(`[trae-hook-sync:${hookType}]`, e)\n52:   }\n53: }\n54: \n55: /**\n56:  * Trae Plugin hooks for OpenCode\n57:  *\n58:  * Maps Claude Code hooks to OpenCode events:\n59:  * - SessionStart  → session.created\n60:  * - Stop gate     → tool.execute.after (check uncommitted changes)\n61:  * - PostReview    → tool.execute.after (review tools only)\n62:  * - SessionEnd    → server.instance.disposed / session.deleted\n63:  */\n64: export const TraeHooksPlugin: Plugin = async ({ directory }) => {\n65:   let currentSessionID: string | null = null\n66: \n67:   return {\n68:     event: async ({ event }) => {\n69:       try {\n70:         switch (event.type) {\n71:           case \"session.created\": {\n72:             const session = (event as any).properties?.info\n73:             if (session?.id) {\n74:               currentSessionID = session.id\n75:               await callHook(\"session-lifecycle-hook.mjs\", \"SessionStart\", directory, {\n76:                 session_id: session.id,\n77:               })\n78:             }\n79:             break\n80:           }\n81: \n82:           case \"session.deleted\": {\n83:             const session = (event as any).properties?.info\n84:             if (session?.id) {\n85:               callHookSync(\"session-lifecycle-hook.mjs\", \"SessionEnd\", directory, {\n86:                 session_id: session.id,\n87:               })\n88:               currentSessionID = null\n89:             }\n90:             break\n91:           }\n92: \n93:           case \"server.instance.disposed\": {\n94:             if (currentSessionID) {\n95:               callHookSync(\"session-lifecycle-hook.mjs\", \"SessionEnd\", directory, {\n96:                 session_id: currentSessionID,\n97:               })\n98:               currentSessionID = null\n99:             }\n100:             break\n101:           }\n102:         }\n103:       } catch {\n104:         // Silently ignore — plugin failures must not crash OpenCode\n105:       }\n106:     },\n107:   }\n108: }\n\n(End of file - total 108 lines)\n</content>",
+            "metadata": {
+              "preview": "import type { Plugin } from \"@opencode-ai/plugin\"\nimport path from \"path\"\n\nconst SCRIPTS_DIR = path.join(path.dirname(path.dirname(import.meta.dir)), \"scripts\")\n\nfunction hookArgs(script: string, hookType: string): string[] {\n  return [\"node\", path.join(SCRIPTS_DIR, script), hookType]\n}\n\nasync function callHook(\n  script: string,\n  hookType: string,\n  cwd: string,\n  payload?: Record<string, unknown>,\n) {\n  try {\n    const proc = Bun.spawn(hookArgs(script, hookType), {\n      cwd,\n      stdout: \"pipe\",\n      stderr: \"pipe\",",
+              "truncated": false,
+              "loaded": []
+            },
+            "title": ".opencode/plugins/trae-hooks.ts",
+            "time": {
+              "start": 1776866459520,
+              "end": 1776866459525
+            }
+          },
+          "id": "prt_db57e7cae001kLjYK4GyDZuGji",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "tool",
+          "tool": "grep",
+          "callID": "call_a60ad30a766b4b8aaa907a52",
+          "state": {
+            "status": "completed",
+            "input": {
+              "pattern": "schedule|cron|timer|interval|periodic|recurr",
+              "path": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+            },
+            "output": "Found 8 matches\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/package-lock.json:\n  Line 1150:         \"@jest/fake-timers\": \"30.3.0\",\n\n  Line 1186:     \"node_modules/@jest/fake-timers\": {\n\n  Line 1188:       \"resolved\": \"https://registry.npmjs.org/@jest/fake-timers/-/fake-timers-30.3.0.tgz\",\n\n  Line 1194:         \"@sinonjs/fake-timers\": \"^15.0.0\",\n\n  Line 1512:     \"node_modules/@sinonjs/fake-timers\": {\n\n  Line 1514:       \"resolved\": \"https://registry.npmjs.org/@sinonjs/fake-timers/-/fake-timers-15.1.1.tgz\",\n\n  Line 3295:         \"@jest/fake-timers\": \"30.3.0\",\n\n  Line 3501:         \"@jest/fake-timers\": \"30.3.0\",\n",
+            "metadata": {
+              "matches": 8,
+              "truncated": false
+            },
+            "title": "schedule|cron|timer|interval|periodic|recurr",
+            "time": {
+              "start": 1776866460603,
+              "end": 1776866460640
+            }
+          },
+          "id": "prt_db57e800e001hIfQf3m507kInw",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "type": "tool",
+          "tool": "glob",
+          "callID": "call_a9759d2082934e8dbc566e3c",
+          "state": {
+            "status": "completed",
+            "input": {
+              "pattern": ".opencode/**/*",
+              "path": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+            },
+            "output": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-rescue.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-cancel.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-result.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-status.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-setup.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-acp.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-sessions.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-adversarial-review.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-review.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/commands/trae-run.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/package-lock.json\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/package.json\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v5.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v7.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v6ToV1.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v6.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/validate.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v4.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v35.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v3.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/uuid-bin.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v1ToV6.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v1.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/sha1.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/stringify.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/types.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/regex.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/rng.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/parse.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/native.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/nil.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/md5.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/max.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/index.d.ts\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/version.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/package.json\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/README.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/version.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/validate.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/validate.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v7.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v7.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v6ToV1.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v6.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v6ToV1.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v6.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v5.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v5.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v4.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v4.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v35.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v35.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v3.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v1ToV6.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v3.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v1ToV6.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/v1.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/v1.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/uuid-bin.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/types.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/uuid-bin.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/types.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/stringify.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/sha1.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/rng.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/rng.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/regex.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/regex.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/parse.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/parse.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/nil.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/nil.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/native.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/native.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/md5.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/md5.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/max.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/max.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist/index.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/test/basic.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/which/README.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/index.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/index.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/mode.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/which/package.json\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/which/CHANGELOG.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/which/which.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/windows.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/LICENSE\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/uuid/dist-node/bin/uuid\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/README.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/shebang-command/readme.md\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/shebang-command/package.json\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/.npmignore\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/which/bin/node-which\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/shebang-command/index.js\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/isexe/package.json\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/shebang-command/license\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/node_modules/which/LICENSE\n/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/.gitignore\n\n(Results are truncated: showing first 100 results. Consider using a more specific path or pattern.)",
+            "metadata": {
+              "count": 100,
+              "truncated": true
+            },
+            "title": "",
+            "time": {
+              "start": 1776866461586,
+              "end": 1776866461620
+            }
+          },
+          "id": "prt_db57e84a1001pz7Elsw2C1Qyw3",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "917bb95f97b9aba6ef805b4ee5df9eefe1660931",
+          "type": "step-finish",
+          "tokens": {
+            "total": 12236,
+            "input": 11910,
+            "output": 304,
+            "reasoning": 22,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db57e88210017a9Q5F9EApyA2i",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e60e90014HAZeryUrC70z3"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 17002,
+          "input": 16845,
+          "output": 138,
+          "reasoning": 19,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776866461810,
+          "completed": 1776866467398
+        },
+        "finish": "tool-calls",
+        "id": "msg_db57e8872001dclWmszxyEsNGK",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "snapshot": "917bb95f97b9aba6ef805b4ee5df9eefe1660931",
+          "type": "step-start",
+          "id": "prt_db57e8d59001KfOdZE7QQqokNW",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        },
+        {
+          "type": "reasoning",
+          "text": "Now let me search online for OpenCode scheduling/cron capabilities and read the other plugin file.",
+          "time": {
+            "start": 1776866463074,
+            "end": 1776866463457
+          },
+          "id": "prt_db57e8d620019kFseIBJqIZqDi",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        },
+        {
+          "type": "tool",
+          "tool": "read",
+          "callID": "call_7ec8c9c7daad47fbad8d55a6",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/plugins/entire.ts"
+            },
+            "output": "<path>/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/plugins/entire.ts</path>\n<type>file</type>\n<content>\n1: // Entire CLI plugin for OpenCode\n2: // Auto-generated by `entire enable --agent opencode`\n3: // Do not edit manually — changes will be overwritten on next install.\n4: // Requires Bun runtime (used by OpenCode's plugin system for loading ESM plugins).\n5: import type { Plugin } from \"@opencode-ai/plugin\"\n6: \n7: export const EntirePlugin: Plugin = async ({ directory }) => {\n8:   const ENTIRE_CMD = 'entire'\n9:   // Track seen user messages to fire turn-start only once per message\n10:   const seenUserMessages = new Set<string>()\n11:   // Track current session ID for message events (which don't include sessionID)\n12:   let currentSessionID: string | null = null\n13:   // Track the model used by the most recent assistant message\n14:   let currentModel: string | null = null\n15:   // In-memory store for message metadata (role, tokens, etc.)\n16:   const messageStore = new Map<string, any>()\n17: \n18:   /**\n19:    * Build the shell command for a hook invocation.\n20:    * Uses sh -c so that shell command substitution in ENTIRE_CMD\n21:    * (e.g., $(git rev-parse --show-toplevel) for local-dev) is interpreted.\n22:    */\n23:   function hookCmd(hookName: string): string[] {\n24:     return [\"sh\", \"-c\", `${ENTIRE_CMD} hooks opencode ${hookName}`]\n25:   }\n26: \n27:   /**\n28:    * Pipe JSON payload to an entire hooks command (async).\n29:    * Errors are logged but never thrown — plugin failures must not crash OpenCode.\n30:    */\n31:   async function callHook(hookName: string, payload: Record<string, unknown>) {\n32:     try {\n33:       const json = JSON.stringify(payload)\n34:       const proc = Bun.spawn(hookCmd(hookName), {\n35:         cwd: directory,\n36:         stdin: new Blob([json + \"\\n\"]),\n37:         stdout: \"ignore\",\n38:         stderr: \"ignore\",\n39:       })\n40:       await proc.exited\n41:     } catch {\n42:       // Silently ignore — plugin failures must not crash OpenCode\n43:     }\n44:   }\n45: \n46:   /**\n47:    * Synchronous variant for hooks that fire near process exit (turn-end, session-end).\n48:    * `opencode run` breaks its event loop on the same session.status idle event that\n49:    * triggers turn-end. The async callHook would be killed before completing.\n50:    * Bun.spawnSync blocks the event loop, preventing exit until the hook finishes.\n51:    */\n52:   function callHookSync(hookName: string, payload: Record<string, unknown>) {\n53:     try {\n54:       const json = JSON.stringify(payload)\n55:       Bun.spawnSync(hookCmd(hookName), {\n56:         cwd: directory,\n57:         stdin: new TextEncoder().encode(json + \"\\n\"),\n58:         stdout: \"ignore\",\n59:         stderr: \"ignore\",\n60:       })\n61:     } catch {\n62:       // Silently ignore — plugin failures must not crash OpenCode\n63:     }\n64:   }\n65: \n66:   return {\n67:     event: async ({ event }) => {\n68:       try {\n69:         switch (event.type) {\n70:           case \"session.created\": {\n71:             const session = (event as any).properties?.info\n72:             if (!session?.id) break\n73:             // Reset per-session tracking state when switching sessions.\n74:             if (currentSessionID !== session.id) {\n75:               seenUserMessages.clear()\n76:               messageStore.clear()\n77:               currentModel = null\n78:               await callHook(\"session-start\", {\n79:                 session_id: session.id,\n80:               })\n81:             }\n82:             currentSessionID = session.id\n83:             break\n84:           }\n85: \n86:           case \"message.updated\": {\n87:             const msg = (event as any).properties?.info\n88:             if (!msg) break\n89:             // Store message metadata (role, time, tokens, etc.)\n90:             messageStore.set(msg.id, msg)\n91:             // Track model from assistant messages\n92:             if (msg.role === \"assistant\" && msg.modelID) {\n93:               currentModel = msg.modelID\n94:             }\n95:             break\n96:           }\n97: \n98:           case \"message.part.updated\": {\n99:             const part = (event as any).properties?.part\n100:             if (!part?.messageID) break\n101: \n102:             // Fire turn-start on the first text part of a new user message\n103:             const msg = messageStore.get(part.messageID)\n104:             if (msg?.role === \"user\" && part.type === \"text\" && !seenUserMessages.has(msg.id)) {\n105:               seenUserMessages.add(msg.id)\n106:               const sessionID = msg.sessionID ?? currentSessionID\n107:               if (sessionID) {\n108:                 await callHook(\"turn-start\", {\n109:                   session_id: sessionID,\n110:                   prompt: part.text ?? \"\",\n111:                   model: currentModel ?? \"\",\n112:                 })\n113:               }\n114:             }\n115:             break\n116:           }\n117: \n118:           case \"session.status\": {\n119:             // session.status fires in both TUI and non-interactive (run) mode.\n120:             // session.idle is deprecated and not reliably emitted in run mode.\n121:             const props = (event as any).properties\n122:             if (props?.status?.type !== \"idle\") break\n123:             const sessionID = props?.sessionID ?? currentSessionID\n124:             if (!sessionID) break\n125:             // Use sync variant: `opencode run` exits on the same idle event,\n126:             // so an async hook would be killed before completing.\n127:             callHookSync(\"turn-end\", {\n128:               session_id: sessionID,\n129:               model: currentModel ?? \"\",\n130:             })\n131:             break\n132:           }\n133: \n134:           case \"session.compacted\": {\n135:             const sessionID = (event as any).properties?.sessionID\n136:             if (!sessionID) break\n137:             await callHook(\"compaction\", {\n138:               session_id: sessionID,\n139:             })\n140:             break\n141:           }\n142: \n143:           case \"session.deleted\": {\n144:             const session = (event as any).properties?.info\n145:             if (!session?.id) break\n146:             seenUserMessages.clear()\n147:             messageStore.clear()\n148:             currentSessionID = null\n149:             // Use sync variant: session-end may fire during shutdown.\n150:             callHookSync(\"session-end\", {\n151:               session_id: session.id,\n152:             })\n153:             break\n154:           }\n155: \n156:           case \"server.instance.disposed\": {\n157:             // Fires when OpenCode shuts down (TUI close or `opencode run` exit).\n158:             // session.deleted only fires on explicit user deletion, not on quit,\n159:             // so this is the only reliable way to end sessions on exit.\n160:             if (!currentSessionID) break\n161:             const sessionID = currentSessionID\n162:             seenUserMessages.clear()\n163:             messageStore.clear()\n164:             currentSessionID = null\n165:             // Use sync variant: this is the last event before process exit.\n166:             callHookSync(\"session-end\", {\n167:               session_id: sessionID,\n168:             })\n169:             break\n170:           }\n171:         }\n172:       } catch {\n173:         // Silently ignore — plugin failures must not crash OpenCode\n174:       }\n175:     },\n176:   }\n177: }\n\n(End of file - total 177 lines)\n</content>",
+            "metadata": {
+              "preview": "// Entire CLI plugin for OpenCode\n// Auto-generated by `entire enable --agent opencode`\n// Do not edit manually — changes will be overwritten on next install.\n// Requires Bun runtime (used by OpenCode's plugin system for loading ESM plugins).\nimport type { Plugin } from \"@opencode-ai/plugin\"\n\nexport const EntirePlugin: Plugin = async ({ directory }) => {\n  const ENTIRE_CMD = 'entire'\n  // Track seen user messages to fire turn-start only once per message\n  const seenUserMessages = new Set<string>()\n  // Track current session ID for message events (which don't include sessionID)\n  let currentSessionID: string | null = null\n  // Track the model used by the most recent assistant message\n  let currentModel: string | null = null\n  // In-memory store for message metadata (role, tokens, etc.)\n  const messageStore = new Map<string, any>()\n\n  /**\n   * Build the shell command for a hook invocation.\n   * Uses sh -c so that shell command substitution in ENTIRE_CMD",
+              "truncated": false,
+              "loaded": []
+            },
+            "title": ".opencode/plugins/entire.ts",
+            "time": {
+              "start": 1776866464192,
+              "end": 1776866464204
+            }
+          },
+          "id": "prt_db57e8ee2001Z2hT4wa6TsgE6q",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        },
+        {
+          "type": "tool",
+          "tool": "read",
+          "callID": "call_dffece99207c49f39dda4868",
+          "state": {
+            "status": "completed",
+            "input": {
+              "filePath": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/tools"
+            },
+            "output": "<path>/Users/ubuntu/1-project/idea0015-trae-plugin-cc/.opencode/tools</path>\n<type>directory</type>\n<entries>\ntrae-acp.ts\ntrae-cancel.ts\ntrae-rescue.ts\ntrae-result.ts\ntrae-review.ts\ntrae-run.ts\ntrae-sessions.ts\ntrae-setup.ts\ntrae-status.ts\n\n(9 entries)\n</entries>",
+            "metadata": {
+              "preview": "trae-acp.ts\ntrae-cancel.ts\ntrae-rescue.ts\ntrae-result.ts\ntrae-review.ts\ntrae-run.ts\ntrae-sessions.ts\ntrae-setup.ts\ntrae-status.ts",
+              "truncated": false,
+              "loaded": []
+            },
+            "title": ".opencode/tools",
+            "time": {
+              "start": 1776866465052,
+              "end": 1776866465059
+            }
+          },
+          "id": "prt_db57e923e00131GZFot1KCytb2",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_a2b828f37af24894b30e2f02",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://opencode.ai/docs",
+              "format": "markdown"
+            },
+            "output": "Intro | AI coding agent built for the terminalIntro | OpenCode     [Skip to content](#_top)\n\n  [![](/docs/_astro/logo-dark.DOStV66V.svg) ![](/docs/_astro/logo-light.B0yzR0O5.svg) OpenCode](/docs/)\n\n[app.header.home](/)[app.header.docs](/docs/)\n\n[](https://github.com/anomalyco/opencode)[](https://opencode.ai/discord)\n\nSearch CtrlK\n\nCancel\n\n-   [Intro](/docs/)\n-   [Config](/docs/config/)\n-   [Providers](/docs/providers/)\n-   [Network](/docs/network/)\n-   [Enterprise](/docs/enterprise/)\n-   [Troubleshooting](/docs/troubleshooting/)\n-   [Windows](/docs/windows-wsl)\n-   Usage\n    \n    -   [Go](/docs/go/)\n    -   [TUI](/docs/tui/)\n    -   [CLI](/docs/cli/)\n    -   [Web](/docs/web/)\n    -   [IDE](/docs/ide/)\n    -   [Zen](/docs/zen/)\n    -   [Share](/docs/share/)\n    -   [GitHub](/docs/github/)\n    -   [GitLab](/docs/gitlab/)\n    \n-   Configure\n    \n    -   [Tools](/docs/tools/)\n    -   [Rules](/docs/rules/)\n    -   [Agents](/docs/agents/)\n    -   [Models](/docs/models/)\n    -   [Themes](/docs/themes/)\n    -   [Keybinds](/docs/keybinds/)\n    -   [Commands](/docs/commands/)\n    -   [Formatters](/docs/formatters/)\n    -   [Permissions](/docs/permissions/)\n    -   [LSP Servers](/docs/lsp/)\n    -   [MCP servers](/docs/mcp-servers/)\n    -   [ACP Support](/docs/acp/)\n    -   [Agent Skills](/docs/skills/)\n    -   [Custom Tools](/docs/custom-tools/)\n    \n-   Develop\n    \n    -   [SDK](/docs/sdk/)\n    -   [Server](/docs/server/)\n    -   [Plugins](/docs/plugins/)\n    -   [Ecosystem](/docs/ecosystem/)\n    \n\n[GitHub](https://github.com/anomalyco/opencode)[Discord](https://opencode.ai/discord)\n\nSelect theme DarkLightAuto   Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文\n\nOn this page\n\n-   [Overview](#_top)\n-   [Install](#install)\n-   [Configure](#configure)\n-   [Initialize](#initialize)\n-   [Usage](#usage)\n    -   [Ask questions](#ask-questions)\n    -   [Add features](#add-features)\n    -   [Make changes](#make-changes)\n    -   [Undo changes](#undo-changes)\n-   [Share](#share)\n-   [Customize](#customize)\n\n## On this page\n\n-   [Overview](#_top)\n-   [Install](#install)\n-   [Configure](#configure)\n-   [Initialize](#initialize)\n-   [Usage](#usage)\n    -   [Ask questions](#ask-questions)\n    -   [Add features](#add-features)\n    -   [Make changes](#make-changes)\n    -   [Undo changes](#undo-changes)\n-   [Share](#share)\n-   [Customize](#customize)\n\n# Intro\n\nGet started with OpenCode.\n\n[**OpenCode**](/) is an open source AI coding agent. It’s available as a terminal-based interface, desktop app, or IDE extension.\n\n![OpenCode TUI with the opencode theme](/docs/_astro/screenshot.CQjBbRyJ_1dLadc.webp)\n\nLet’s get started.\n\n---\n\n#### [Prerequisites](#prerequisites)\n\nTo use OpenCode in your terminal, you’ll need:\n\n1.  A modern terminal emulator like:\n    \n    -   [WezTerm](https://wezterm.org), cross-platform\n    -   [Alacritty](https://alacritty.org), cross-platform\n    -   [Ghostty](https://ghostty.org), Linux and macOS\n    -   [Kitty](https://sw.kovidgoyal.net/kitty/), Linux and macOS\n2.  API keys for the LLM providers you want to use.\n    \n\n---\n\n## [Install](#install)\n\nThe easiest way to install OpenCode is through the install script.\n\nTerminal window\n\n```\ncurl -fsSL https://opencode.ai/install | bash\n```\n\nYou can also install it with the following commands:\n\n-   **Using Node.js**\n    \n    -   [npm](#tab-panel-0)\n    -   [Bun](#tab-panel-1)\n    -   [pnpm](#tab-panel-2)\n    -   [Yarn](#tab-panel-3)\n    \n    Terminal window\n    \n    ```\n    npm install -g opencode-ai\n    ```\n    \n    Terminal window\n    \n    ```\n    bun install -g opencode-ai\n    ```\n    \n    Terminal window\n    \n    ```\n    pnpm install -g opencode-ai\n    ```\n    \n    Terminal window\n    \n    ```\n    yarn global add opencode-ai\n    ```\n    \n-   **Using Homebrew on macOS and Linux**\n    \n    Terminal window\n    \n    ```\n    brew install anomalyco/tap/opencode\n    ```\n    \n    > We recommend using the OpenCode tap for the most up to date releases. The official `brew install opencode` formula is maintained by the Homebrew team and is updated less frequently.\n    \n-   **Installing on Arch Linux**\n    \n    Terminal window\n    \n    ```\n    sudo pacman -S opencode           # Arch Linux (Stable)paru -S opencode-bin              # Arch Linux (Latest from AUR)\n    ```\n    \n\n#### [Windows](#windows)\n\nRecommended: Use WSL\n\nFor the best experience on Windows, we recommend using [Windows Subsystem for Linux (WSL)](/docs/windows-wsl). It provides better performance and full compatibility with OpenCode’s features.\n\n-   **Using Chocolatey**\n    \n    Terminal window\n    \n    ```\n    choco install opencode\n    ```\n    \n-   **Using Scoop**\n    \n    Terminal window\n    \n    ```\n    scoop install opencode\n    ```\n    \n-   **Using NPM**\n    \n    Terminal window\n    \n    ```\n    npm install -g opencode-ai\n    ```\n    \n-   **Using Mise**\n    \n    Terminal window\n    \n    ```\n    mise use -g github:anomalyco/opencode\n    ```\n    \n-   **Using Docker**\n    \n    Terminal window\n    \n    ```\n    docker run -it --rm ghcr.io/anomalyco/opencode\n    ```\n    \n\nSupport for installing OpenCode on Windows using Bun is currently in progress.\n\nYou can also grab the binary from the [Releases](https://github.com/anomalyco/opencode/releases).\n\n---\n\n## [Configure](#configure)\n\nWith OpenCode you can use any LLM provider by configuring their API keys.\n\nIf you are new to using LLM providers, we recommend using [OpenCode Zen](/docs/zen). It’s a curated list of models that have been tested and verified by the OpenCode team.\n\n1.  Run the `/connect` command in the TUI, select opencode, and head to [opencode.ai/auth](https://opencode.ai/auth).\n    \n    ```\n    /connect\n    ```\n    \n2.  Sign in, add your billing details, and copy your API key.\n    \n3.  Paste your API key.\n    \n    ```\n    ┌ API key││└ enter\n    ```\n    \n\nAlternatively, you can select one of the other providers. [Learn more](/docs/providers#directory).\n\n---\n\n## [Initialize](#initialize)\n\nNow that you’ve configured a provider, you can navigate to a project that you want to work on.\n\nTerminal window\n\n```\ncd /path/to/project\n```\n\nAnd run OpenCode.\n\nTerminal window\n\n```\nopencode\n```\n\nNext, initialize OpenCode for the project by running the following command.\n\n```\n/init\n```\n\nThis will get OpenCode to analyze your project and create an `AGENTS.md` file in the project root.\n\nTip\n\nYou should commit your project’s `AGENTS.md` file to Git.\n\nThis helps OpenCode understand the project structure and the coding patterns used.\n\n---\n\n## [Usage](#usage)\n\nYou are now ready to use OpenCode to work on your project. Feel free to ask it anything!\n\nIf you are new to using an AI coding agent, here are some examples that might help.\n\n---\n\n### [Ask questions](#ask-questions)\n\nYou can ask OpenCode to explain the codebase to you.\n\nTip\n\nUse the `@` key to fuzzy search for files in the project.\n\n```\nHow is authentication handled in @packages/functions/src/api/index.ts\n```\n\nThis is helpful if there’s a part of the codebase that you didn’t work on.\n\n---\n\n### [Add features](#add-features)\n\nYou can ask OpenCode to add new features to your project. Though we first recommend asking it to create a plan.\n\n1.  **Create a plan**\n    \n    OpenCode has a *Plan mode* that disables its ability to make changes and instead suggest *how* it’ll implement the feature.\n    \n    Switch to it using the **Tab** key. You’ll see an indicator for this in the lower right corner.\n    \n    ```\n    <TAB>\n    ```\n    \n    Now let’s describe what we want it to do.\n    \n    ```\n    When a user deletes a note, we'd like to flag it as deleted in the database.Then create a screen that shows all the recently deleted notes.From this screen, the user can undelete a note or permanently delete it.\n    ```\n    \n    You want to give OpenCode enough details to understand what you want. It helps to talk to it like you are talking to a junior developer on your team.\n    \n    Tip\n    \n    Give OpenCode plenty of context and examples to help it understand what you want.\n    \n2.  **Iterate on the plan**\n    \n    Once it gives you a plan, you can give it feedback or add more details.\n    \n    ```\n    We'd like to design this new screen using a design I've used before.[Image #1] Take a look at this image and use it as a reference.\n    ```\n    \n    Tip\n    \n    Drag and drop images into the terminal to add them to the prompt.\n    \n    OpenCode can scan any images you give it and add them to the prompt. You can do this by dragging and dropping an image into the terminal.\n    \n3.  **Build the feature**\n    \n    Once you feel comfortable with the plan, switch back to *Build mode* by hitting the **Tab** key again.\n    \n    ```\n    <TAB>\n    ```\n    \n    And asking it to make the changes.\n    \n    ```\n    Sounds good! Go ahead and make the changes.\n    ```\n    \n\n---\n\n### [Make changes](#make-changes)\n\nFor more straightforward changes, you can ask OpenCode to directly build it without having to review the plan first.\n\n```\nWe need to add authentication to the /settings route. Take a look at how this ishandled in the /notes route in @packages/functions/src/notes.ts and implementthe same logic in @packages/functions/src/settings.ts\n```\n\nYou want to make sure you provide a good amount of detail so OpenCode makes the right changes.\n\n---\n\n### [Undo changes](#undo-changes)\n\nLet’s say you ask OpenCode to make some changes.\n\n```\nCan you refactor the function in @packages/functions/src/api/index.ts?\n```\n\nBut you realize that it is not what you wanted. You **can undo** the changes using the `/undo` command.\n\n```\n/undo\n```\n\nOpenCode will now revert the changes you made and show your original message again.\n\n```\nCan you refactor the function in @packages/functions/src/api/index.ts?\n```\n\nFrom here you can tweak the prompt and ask OpenCode to try again.\n\nTip\n\nYou can run `/undo` multiple times to undo multiple changes.\n\nOr you **can redo** the changes using the `/redo` command.\n\n```\n/redo\n```\n\n---\n\n## [Share](#share)\n\nThe conversations that you have with OpenCode can be [shared with your team](/docs/share).\n\n```\n/share\n```\n\nThis will create a link to the current conversation and copy it to your clipboard.\n\nNote\n\nConversations are not shared by default.\n\nHere’s an [example conversation](https://opencode.ai/s/4XP1fce5) with OpenCode.\n\n---\n\n## [Customize](#customize)\n\nAnd that’s it! You are now a pro at using OpenCode.\n\nTo make it your own, we recommend [picking a theme](/docs/themes), [customizing the keybinds](/docs/keybinds), [configuring code formatters](/docs/formatters), [creating custom commands](/docs/commands), or playing around with the [OpenCode config](/docs/config).\n\n[Edit page](https://github.com/anomalyco/opencode/edit/dev/packages/web/src/content/docs/index.mdx)[Found a bug? Open an issue](https://github.com/anomalyco/opencode/issues/new)[Join our Discord community](https://opencode.ai/discord) Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文 \n\n© [Anomaly](https://anoma.ly)\n\nLast updated: Apr 22, 2026",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://opencode.ai/docs (text/html)",
+            "time": {
+              "start": 1776866465764,
+              "end": 1776866467282
+            }
+          },
+          "id": "prt_db57e959f001DYrc4rIuMPC6PB",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-finish",
+          "tokens": {
+            "total": 17002,
+            "input": 16845,
+            "output": 138,
+            "reasoning": 19,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db57e9dda001PIlfIXvgvxWhw6",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        },
+        {
+          "type": "patch",
+          "hash": "917bb95f97b9aba6ef805b4ee5df9eefe1660931",
+          "files": [
+            "/Users/ubuntu/1-project/idea0015-trae-plugin-cc/src/commands/review.ts"
+          ],
+          "id": "prt_db57e9e450016nYi8t30QXqdS6",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e8872001dclWmszxyEsNGK"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 22591,
+          "input": 22440,
+          "output": 136,
+          "reasoning": 15,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776866467402,
+          "completed": 1776866472555
+        },
+        "finish": "tool-calls",
+        "id": "msg_db57e9e4a001IjFG7msS167ghW",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-start",
+          "id": "prt_db57ea617001lFa96d24SdHXW5",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e9e4a001IjFG7msS167ghW"
+        },
+        {
+          "type": "reasoning",
+          "text": "Let me search for more specific OpenCode documentation on plugins and scheduling capabilities.",
+          "time": {
+            "start": 1776866469405,
+            "end": 1776866469751
+          },
+          "id": "prt_db57ea61d0012RBq0iEsrmErrF",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e9e4a001IjFG7msS167ghW"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_bb7035fa483e45a7a0d959a4",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://opencode.ai/docs/plugins/",
+              "format": "markdown"
+            },
+            "output": "Plugins | OpenCode     [Skip to content](#_top)\n\n  [![](/docs/_astro/logo-dark.DOStV66V.svg) ![](/docs/_astro/logo-light.B0yzR0O5.svg) OpenCode](/docs/)\n\n[app.header.home](/)[app.header.docs](/docs/)\n\n[](https://github.com/anomalyco/opencode)[](https://opencode.ai/discord)\n\nSearch CtrlK\n\nCancel\n\n-   [Intro](/docs/)\n-   [Config](/docs/config/)\n-   [Providers](/docs/providers/)\n-   [Network](/docs/network/)\n-   [Enterprise](/docs/enterprise/)\n-   [Troubleshooting](/docs/troubleshooting/)\n-   [Windows](/docs/windows-wsl)\n-   Usage\n    \n    -   [Go](/docs/go/)\n    -   [TUI](/docs/tui/)\n    -   [CLI](/docs/cli/)\n    -   [Web](/docs/web/)\n    -   [IDE](/docs/ide/)\n    -   [Zen](/docs/zen/)\n    -   [Share](/docs/share/)\n    -   [GitHub](/docs/github/)\n    -   [GitLab](/docs/gitlab/)\n    \n-   Configure\n    \n    -   [Tools](/docs/tools/)\n    -   [Rules](/docs/rules/)\n    -   [Agents](/docs/agents/)\n    -   [Models](/docs/models/)\n    -   [Themes](/docs/themes/)\n    -   [Keybinds](/docs/keybinds/)\n    -   [Commands](/docs/commands/)\n    -   [Formatters](/docs/formatters/)\n    -   [Permissions](/docs/permissions/)\n    -   [LSP Servers](/docs/lsp/)\n    -   [MCP servers](/docs/mcp-servers/)\n    -   [ACP Support](/docs/acp/)\n    -   [Agent Skills](/docs/skills/)\n    -   [Custom Tools](/docs/custom-tools/)\n    \n-   Develop\n    \n    -   [SDK](/docs/sdk/)\n    -   [Server](/docs/server/)\n    -   [Plugins](/docs/plugins/)\n    -   [Ecosystem](/docs/ecosystem/)\n    \n\n[GitHub](https://github.com/anomalyco/opencode)[Discord](https://opencode.ai/discord)\n\nSelect theme DarkLightAuto   Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文\n\nOn this page\n\n-   [Overview](#_top)\n-   [Use a plugin](#use-a-plugin)\n    -   [From local files](#from-local-files)\n    -   [From npm](#from-npm)\n    -   [How plugins are installed](#how-plugins-are-installed)\n    -   [Load order](#load-order)\n-   [Create a plugin](#create-a-plugin)\n    -   [Dependencies](#dependencies)\n    -   [Basic structure](#basic-structure)\n    -   [TypeScript support](#typescript-support)\n    -   [Events](#events)\n-   [Examples](#examples)\n    -   [Send notifications](#send-notifications)\n    -   [.env protection](#env-protection)\n    -   [Inject environment variables](#inject-environment-variables)\n    -   [Custom tools](#custom-tools)\n    -   [Logging](#logging)\n    -   [Compaction hooks](#compaction-hooks)\n\n## On this page\n\n-   [Overview](#_top)\n-   [Use a plugin](#use-a-plugin)\n    -   [From local files](#from-local-files)\n    -   [From npm](#from-npm)\n    -   [How plugins are installed](#how-plugins-are-installed)\n    -   [Load order](#load-order)\n-   [Create a plugin](#create-a-plugin)\n    -   [Dependencies](#dependencies)\n    -   [Basic structure](#basic-structure)\n    -   [TypeScript support](#typescript-support)\n    -   [Events](#events)\n-   [Examples](#examples)\n    -   [Send notifications](#send-notifications)\n    -   [.env protection](#env-protection)\n    -   [Inject environment variables](#inject-environment-variables)\n    -   [Custom tools](#custom-tools)\n    -   [Logging](#logging)\n    -   [Compaction hooks](#compaction-hooks)\n\n# Plugins\n\nWrite your own plugins to extend OpenCode.\n\nPlugins allow you to extend OpenCode by hooking into various events and customizing behavior. You can create plugins to add new features, integrate with external services, or modify OpenCode’s default behavior.\n\nFor examples, check out the [plugins](/docs/ecosystem#plugins) created by the community.\n\n---\n\n## [Use a plugin](#use-a-plugin)\n\nThere are two ways to load plugins.\n\n---\n\n### [From local files](#from-local-files)\n\nPlace JavaScript or TypeScript files in the plugin directory.\n\n-   `.opencode/plugins/` - Project-level plugins\n-   `~/.config/opencode/plugins/` - Global plugins\n\nFiles in these directories are automatically loaded at startup.\n\n---\n\n### [From npm](#from-npm)\n\nSpecify npm packages in your config file.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"plugin\": [\"opencode-helicone-session\", \"opencode-wakatime\", \"@my-org/custom-plugin\"]}\n```\n\nBoth regular and scoped npm packages are supported.\n\nBrowse available plugins in the [ecosystem](/docs/ecosystem#plugins).\n\n---\n\n### [How plugins are installed](#how-plugins-are-installed)\n\n**npm plugins** are installed automatically using Bun at startup. Packages and their dependencies are cached in `~/.cache/opencode/node_modules/`.\n\n**Local plugins** are loaded directly from the plugin directory. To use external packages, you must create a `package.json` within your config directory (see [Dependencies](#dependencies)), or publish the plugin to npm and [add it to your config](/docs/config#plugins).\n\n---\n\n### [Load order](#load-order)\n\nPlugins are loaded from all sources and all hooks run in sequence. The load order is:\n\n1.  Global config (`~/.config/opencode/opencode.json`)\n2.  Project config (`opencode.json`)\n3.  Global plugin directory (`~/.config/opencode/plugins/`)\n4.  Project plugin directory (`.opencode/plugins/`)\n\nDuplicate npm packages with the same name and version are loaded once. However, a local plugin and an npm plugin with similar names are both loaded separately.\n\n---\n\n## [Create a plugin](#create-a-plugin)\n\nA plugin is a **JavaScript/TypeScript module** that exports one or more plugin functions. Each function receives a context object and returns a hooks object.\n\n---\n\n### [Dependencies](#dependencies)\n\nLocal plugins and custom tools can use external npm packages. Add a `package.json` to your config directory with the dependencies you need.\n\n.opencode/package.json\n\n```\n{  \"dependencies\": {    \"shescape\": \"^2.1.0\"  }}\n```\n\nOpenCode runs `bun install` at startup to install these. Your plugins and tools can then import them.\n\n.opencode/plugins/my-plugin.ts\n\n```\nimport { escape } from \"shescape\"\nexport const MyPlugin = async (ctx) => {  return {    \"tool.execute.before\": async (input, output) => {      if (input.tool === \"bash\") {        output.args.command = escape(output.args.command)      }    },  }}\n```\n\n---\n\n### [Basic structure](#basic-structure)\n\n.opencode/plugins/example.js\n\n```\nexport const MyPlugin = async ({ project, client, $, directory, worktree }) => {  console.log(\"Plugin initialized!\")\n  return {    // Hook implementations go here  }}\n```\n\nThe plugin function receives:\n\n-   `project`: The current project information.\n-   `directory`: The current working directory.\n-   `worktree`: The git worktree path.\n-   `client`: An opencode SDK client for interacting with the AI.\n-   `$`: Bun’s [shell API](https://bun.com/docs/runtime/shell) for executing commands.\n\n---\n\n### [TypeScript support](#typescript-support)\n\nFor TypeScript plugins, you can import types from the plugin package:\n\nmy-plugin.ts\n\n```\nimport type { Plugin } from \"@opencode-ai/plugin\"\nexport const MyPlugin: Plugin = async ({ project, client, $, directory, worktree }) => {  return {    // Type-safe hook implementations  }}\n```\n\n---\n\n### [Events](#events)\n\nPlugins can subscribe to events as seen below in the Examples section. Here is a list of the different events available.\n\n#### [Command Events](#command-events)\n\n-   `command.executed`\n\n#### [File Events](#file-events)\n\n-   `file.edited`\n-   `file.watcher.updated`\n\n#### [Installation Events](#installation-events)\n\n-   `installation.updated`\n\n#### [LSP Events](#lsp-events)\n\n-   `lsp.client.diagnostics`\n-   `lsp.updated`\n\n#### [Message Events](#message-events)\n\n-   `message.part.removed`\n-   `message.part.updated`\n-   `message.removed`\n-   `message.updated`\n\n#### [Permission Events](#permission-events)\n\n-   `permission.asked`\n-   `permission.replied`\n\n#### [Server Events](#server-events)\n\n-   `server.connected`\n\n#### [Session Events](#session-events)\n\n-   `session.created`\n-   `session.compacted`\n-   `session.deleted`\n-   `session.diff`\n-   `session.error`\n-   `session.idle`\n-   `session.status`\n-   `session.updated`\n\n#### [Todo Events](#todo-events)\n\n-   `todo.updated`\n\n#### [Shell Events](#shell-events)\n\n-   `shell.env`\n\n#### [Tool Events](#tool-events)\n\n-   `tool.execute.after`\n-   `tool.execute.before`\n\n#### [TUI Events](#tui-events)\n\n-   `tui.prompt.append`\n-   `tui.command.execute`\n-   `tui.toast.show`\n\n---\n\n## [Examples](#examples)\n\nHere are some examples of plugins you can use to extend opencode.\n\n---\n\n### [Send notifications](#send-notifications)\n\nSend notifications when certain events occur:\n\n.opencode/plugins/notification.js\n\n```\nexport const NotificationPlugin = async ({ project, client, $, directory, worktree }) => {  return {    event: async ({ event }) => {      // Send notification on session completion      if (event.type === \"session.idle\") {        await $`osascript -e 'display notification \"Session completed!\" with title \"opencode\"'`      }    },  }}\n```\n\nWe are using `osascript` to run AppleScript on macOS. Here we are using it to send notifications.\n\nNote\n\nIf you’re using the OpenCode desktop app, it can send system notifications automatically when a response is ready or when a session errors.\n\n---\n\n### [.env protection](#env-protection)\n\nPrevent opencode from reading `.env` files:\n\n.opencode/plugins/env-protection.js\n\n```\nexport const EnvProtection = async ({ project, client, $, directory, worktree }) => {  return {    \"tool.execute.before\": async (input, output) => {      if (input.tool === \"read\" && output.args.filePath.includes(\".env\")) {        throw new Error(\"Do not read .env files\")      }    },  }}\n```\n\n---\n\n### [Inject environment variables](#inject-environment-variables)\n\nInject environment variables into all shell execution (AI tools and user terminals):\n\n.opencode/plugins/inject-env.js\n\n```\nexport const InjectEnvPlugin = async () => {  return {    \"shell.env\": async (input, output) => {      output.env.MY_API_KEY = \"secret\"      output.env.PROJECT_ROOT = input.cwd    },  }}\n```\n\n---\n\n### [Custom tools](#custom-tools)\n\nPlugins can also add custom tools to opencode:\n\n.opencode/plugins/custom-tools.ts\n\n```\nimport { type Plugin, tool } from \"@opencode-ai/plugin\"\nexport const CustomToolsPlugin: Plugin = async (ctx) => {  return {    tool: {      mytool: tool({        description: \"This is a custom tool\",        args: {          foo: tool.schema.string(),        },        async execute(args, context) {          const { directory, worktree } = context          return `Hello ${args.foo} from ${directory} (worktree: ${worktree})`        },      }),    },  }}\n```\n\nThe `tool` helper creates a custom tool that opencode can call. It takes a Zod schema function and returns a tool definition with:\n\n-   `description`: What the tool does\n-   `args`: Zod schema for the tool’s arguments\n-   `execute`: Function that runs when the tool is called\n\nYour custom tools will be available to opencode alongside built-in tools.\n\nNote\n\nIf a plugin tool uses the same name as a built-in tool, the plugin tool takes precedence.\n\n---\n\n### [Logging](#logging)\n\nUse `client.app.log()` instead of `console.log` for structured logging:\n\n.opencode/plugins/my-plugin.ts\n\n```\nexport const MyPlugin = async ({ client }) => {  await client.app.log({    body: {      service: \"my-plugin\",      level: \"info\",      message: \"Plugin initialized\",      extra: { foo: \"bar\" },    },  })}\n```\n\nLevels: `debug`, `info`, `warn`, `error`. See [SDK documentation](https://opencode.ai/docs/sdk) for details.\n\n---\n\n### [Compaction hooks](#compaction-hooks)\n\nCustomize the context included when a session is compacted:\n\n.opencode/plugins/compaction.ts\n\n```\nimport type { Plugin } from \"@opencode-ai/plugin\"\nexport const CompactionPlugin: Plugin = async (ctx) => {  return {    \"experimental.session.compacting\": async (input, output) => {      // Inject additional context into the compaction prompt      output.context.push(`## Custom Context\nInclude any state that should persist across compaction:- Current task status- Important decisions made- Files being actively worked on`)    },  }}\n```\n\nThe `experimental.session.compacting` hook fires before the LLM generates a continuation summary. Use it to inject domain-specific context that the default compaction prompt would miss.\n\nYou can also replace the compaction prompt entirely by setting `output.prompt`:\n\n.opencode/plugins/custom-compaction.ts\n\n```\nimport type { Plugin } from \"@opencode-ai/plugin\"\nexport const CustomCompactionPlugin: Plugin = async (ctx) => {  return {    \"experimental.session.compacting\": async (input, output) => {      // Replace the entire compaction prompt      output.prompt = `You are generating a continuation prompt for a multi-agent swarm session.\nSummarize:1. The current task and its status2. Which files are being modified and by whom3. Any blockers or dependencies between agents4. The next steps to complete the work\nFormat as a structured prompt that a new agent can use to resume work.`    },  }}\n```\n\nWhen `output.prompt` is set, it completely replaces the default compaction prompt. The `output.context` array is ignored in this case.\n\n[Edit page](https://github.com/anomalyco/opencode/edit/dev/packages/web/src/content/docs/plugins.mdx)[Found a bug? Open an issue](https://github.com/anomalyco/opencode/issues/new)[Join our Discord community](https://opencode.ai/discord) Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文 \n\n© [Anomaly](https://anoma.ly)\n\nLast updated: Apr 22, 2026",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://opencode.ai/docs/plugins/ (text/html)",
+            "time": {
+              "start": 1776866470437,
+              "end": 1776866470908
+            }
+          },
+          "id": "prt_db57ea778002uMWeMbTdLAu8AT",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e9e4a001IjFG7msS167ghW"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_49049fd5bdcf4900a8eff408",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://opencode.ai/docs/sdk/",
+              "format": "markdown"
+            },
+            "output": "SDK | OpenCode     [Skip to content](#_top)\n\n  [![](/docs/_astro/logo-dark.DOStV66V.svg) ![](/docs/_astro/logo-light.B0yzR0O5.svg) OpenCode](/docs/)\n\n[app.header.home](/)[app.header.docs](/docs/)\n\n[](https://github.com/anomalyco/opencode)[](https://opencode.ai/discord)\n\nSearch CtrlK\n\nCancel\n\n-   [Intro](/docs/)\n-   [Config](/docs/config/)\n-   [Providers](/docs/providers/)\n-   [Network](/docs/network/)\n-   [Enterprise](/docs/enterprise/)\n-   [Troubleshooting](/docs/troubleshooting/)\n-   [Windows](/docs/windows-wsl)\n-   Usage\n    \n    -   [Go](/docs/go/)\n    -   [TUI](/docs/tui/)\n    -   [CLI](/docs/cli/)\n    -   [Web](/docs/web/)\n    -   [IDE](/docs/ide/)\n    -   [Zen](/docs/zen/)\n    -   [Share](/docs/share/)\n    -   [GitHub](/docs/github/)\n    -   [GitLab](/docs/gitlab/)\n    \n-   Configure\n    \n    -   [Tools](/docs/tools/)\n    -   [Rules](/docs/rules/)\n    -   [Agents](/docs/agents/)\n    -   [Models](/docs/models/)\n    -   [Themes](/docs/themes/)\n    -   [Keybinds](/docs/keybinds/)\n    -   [Commands](/docs/commands/)\n    -   [Formatters](/docs/formatters/)\n    -   [Permissions](/docs/permissions/)\n    -   [LSP Servers](/docs/lsp/)\n    -   [MCP servers](/docs/mcp-servers/)\n    -   [ACP Support](/docs/acp/)\n    -   [Agent Skills](/docs/skills/)\n    -   [Custom Tools](/docs/custom-tools/)\n    \n-   Develop\n    \n    -   [SDK](/docs/sdk/)\n    -   [Server](/docs/server/)\n    -   [Plugins](/docs/plugins/)\n    -   [Ecosystem](/docs/ecosystem/)\n    \n\n[GitHub](https://github.com/anomalyco/opencode)[Discord](https://opencode.ai/discord)\n\nSelect theme DarkLightAuto   Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文\n\nOn this page\n\n-   [Overview](#_top)\n-   [Install](#install)\n-   [Create client](#create-client)\n-   [Config](#config)\n-   [Client only](#client-only)\n-   [Types](#types)\n-   [Errors](#errors)\n-   [Structured Output](#structured-output)\n    -   [Basic Usage](#basic-usage)\n    -   [Output Format Types](#output-format-types)\n    -   [JSON Schema Format](#json-schema-format)\n    -   [Error Handling](#error-handling)\n    -   [Best Practices](#best-practices)\n-   [APIs](#apis)\n    -   [Global](#global)\n    -   [App](#app)\n    -   [Project](#project)\n    -   [Path](#path)\n    -   [Config](#config-1)\n    -   [Sessions](#sessions)\n    -   [Files](#files)\n    -   [TUI](#tui)\n    -   [Auth](#auth)\n    -   [Events](#events)\n\n## On this page\n\n-   [Overview](#_top)\n-   [Install](#install)\n-   [Create client](#create-client)\n-   [Config](#config)\n-   [Client only](#client-only)\n-   [Types](#types)\n-   [Errors](#errors)\n-   [Structured Output](#structured-output)\n    -   [Basic Usage](#basic-usage)\n    -   [Output Format Types](#output-format-types)\n    -   [JSON Schema Format](#json-schema-format)\n    -   [Error Handling](#error-handling)\n    -   [Best Practices](#best-practices)\n-   [APIs](#apis)\n    -   [Global](#global)\n    -   [App](#app)\n    -   [Project](#project)\n    -   [Path](#path)\n    -   [Config](#config-1)\n    -   [Sessions](#sessions)\n    -   [Files](#files)\n    -   [TUI](#tui)\n    -   [Auth](#auth)\n    -   [Events](#events)\n\n# SDK\n\nType-safe JS client for opencode server.\n\nThe opencode JS/TS SDK provides a type-safe client for interacting with the server. Use it to build integrations and control opencode programmatically.\n\n[Learn more](/docs/server) about how the server works. For examples, check out the [projects](/docs/ecosystem#projects) built by the community.\n\n---\n\n## [Install](#install)\n\nInstall the SDK from npm:\n\nTerminal window\n\n```\nnpm install @opencode-ai/sdk\n```\n\n---\n\n## [Create client](#create-client)\n\nCreate an instance of opencode:\n\n```\nimport { createOpencode } from \"@opencode-ai/sdk\"\nconst { client } = await createOpencode()\n```\n\nThis starts both a server and a client\n\n#### [Options](#options)\n\nOption\n\nType\n\nDescription\n\nDefault\n\n`hostname`\n\n`string`\n\nServer hostname\n\n`127.0.0.1`\n\n`port`\n\n`number`\n\nServer port\n\n`4096`\n\n`signal`\n\n`AbortSignal`\n\nAbort signal for cancellation\n\n`undefined`\n\n`timeout`\n\n`number`\n\nTimeout in ms for server start\n\n`5000`\n\n`config`\n\n`Config`\n\nConfiguration object\n\n`{}`\n\n---\n\n## [Config](#config)\n\nYou can pass a configuration object to customize behavior. The instance still picks up your `opencode.json`, but you can override or add configuration inline:\n\n```\nimport { createOpencode } from \"@opencode-ai/sdk\"\nconst opencode = await createOpencode({  hostname: \"127.0.0.1\",  port: 4096,  config: {    model: \"anthropic/claude-3-5-sonnet-20241022\",  },})\nconsole.log(`Server running at ${opencode.server.url}`)\nopencode.server.close()\n```\n\n## [Client only](#client-only)\n\nIf you already have a running instance of opencode, you can create a client instance to connect to it:\n\n```\nimport { createOpencodeClient } from \"@opencode-ai/sdk\"\nconst client = createOpencodeClient({  baseUrl: \"http://localhost:4096\",})\n```\n\n#### [Options](#options-1)\n\nOption\n\nType\n\nDescription\n\nDefault\n\n`baseUrl`\n\n`string`\n\nURL of the server\n\n`http://localhost:4096`\n\n`fetch`\n\n`function`\n\nCustom fetch implementation\n\n`globalThis.fetch`\n\n`parseAs`\n\n`string`\n\nResponse parsing method\n\n`auto`\n\n`responseStyle`\n\n`string`\n\nReturn style: `data` or `fields`\n\n`fields`\n\n`throwOnError`\n\n`boolean`\n\nThrow errors instead of return\n\n`false`\n\n---\n\n## [Types](#types)\n\nThe SDK includes TypeScript definitions for all API types. Import them directly:\n\n```\nimport type { Session, Message, Part } from \"@opencode-ai/sdk\"\n```\n\nAll types are generated from the server’s OpenAPI specification and available in the [types file](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts).\n\n---\n\n## [Errors](#errors)\n\nThe SDK can throw errors that you can catch and handle:\n\n```\ntry {  await client.session.get({ path: { id: \"invalid-id\" } })} catch (error) {  console.error(\"Failed to get session:\", (error as Error).message)}\n```\n\n---\n\n## [Structured Output](#structured-output)\n\nYou can request structured JSON output from the model by specifying an `format` with a JSON schema. The model will use a `StructuredOutput` tool to return validated JSON matching your schema.\n\n### [Basic Usage](#basic-usage)\n\n```\nconst result = await client.session.prompt({  path: { id: sessionId },  body: {    parts: [{ type: \"text\", text: \"Research Anthropic and provide company info\" }],    format: {      type: \"json_schema\",      schema: {        type: \"object\",        properties: {          company: { type: \"string\", description: \"Company name\" },          founded: { type: \"number\", description: \"Year founded\" },          products: {            type: \"array\",            items: { type: \"string\" },            description: \"Main products\",          },        },        required: [\"company\", \"founded\"],      },    },  },})\n// Access the structured outputconsole.log(result.data.info.structured_output)// { company: \"Anthropic\", founded: 2021, products: [\"Claude\", \"Claude API\"] }\n```\n\n### [Output Format Types](#output-format-types)\n\nType\n\nDescription\n\n`text`\n\nDefault. Standard text response (no structured output)\n\n`json_schema`\n\nReturns validated JSON matching the provided schema\n\n### [JSON Schema Format](#json-schema-format)\n\nWhen using `type: 'json_schema'`, provide:\n\nField\n\nType\n\nDescription\n\n`type`\n\n`'json_schema'`\n\nRequired. Specifies JSON schema mode\n\n`schema`\n\n`object`\n\nRequired. JSON Schema object defining the output structure\n\n`retryCount`\n\n`number`\n\nOptional. Number of validation retries (default: 2)\n\n### [Error Handling](#error-handling)\n\nIf the model fails to produce valid structured output after all retries, the response will include a `StructuredOutputError`:\n\n```\nif (result.data.info.error?.name === \"StructuredOutputError\") {  console.error(\"Failed to produce structured output:\", result.data.info.error.message)  console.error(\"Attempts:\", result.data.info.error.retries)}\n```\n\n### [Best Practices](#best-practices)\n\n1.  **Provide clear descriptions** in your schema properties to help the model understand what data to extract\n2.  **Use `required`** to specify which fields must be present\n3.  **Keep schemas focused** - complex nested schemas may be harder for the model to fill correctly\n4.  **Set appropriate `retryCount`** - increase for complex schemas, decrease for simple ones\n\n---\n\n## [APIs](#apis)\n\nThe SDK exposes all server APIs through a type-safe client.\n\n---\n\n### [Global](#global)\n\nMethod\n\nDescription\n\nResponse\n\n`global.health()`\n\nCheck server health and version\n\n`{ healthy: true, version: string }`\n\n---\n\n#### [Examples](#examples)\n\n```\nconst health = await client.global.health()console.log(health.data.version)\n```\n\n---\n\n### [App](#app)\n\nMethod\n\nDescription\n\nResponse\n\n`app.log()`\n\nWrite a log entry\n\n`boolean`\n\n`app.agents()`\n\nList all available agents\n\n[`Agent[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n---\n\n#### [Examples](#examples-1)\n\n```\n// Write a log entryawait client.app.log({  body: {    service: \"my-app\",    level: \"info\",    message: \"Operation completed\",  },})\n// List available agentsconst agents = await client.app.agents()\n```\n\n---\n\n### [Project](#project)\n\nMethod\n\nDescription\n\nResponse\n\n`project.list()`\n\nList all projects\n\n[`Project[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`project.current()`\n\nGet current project\n\n[`Project`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n---\n\n#### [Examples](#examples-2)\n\n```\n// List all projectsconst projects = await client.project.list()\n// Get current projectconst currentProject = await client.project.current()\n```\n\n---\n\n### [Path](#path)\n\nMethod\n\nDescription\n\nResponse\n\n`path.get()`\n\nGet current path\n\n[`Path`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n---\n\n#### [Examples](#examples-3)\n\n```\n// Get current path informationconst pathInfo = await client.path.get()\n```\n\n---\n\n### [Config](#config-1)\n\nMethod\n\nDescription\n\nResponse\n\n`config.get()`\n\nGet config info\n\n[`Config`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`config.providers()`\n\nList providers and default models\n\n`{ providers:` [`Provider[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`, default: { [key: string]: string } }`\n\n---\n\n#### [Examples](#examples-4)\n\n```\nconst config = await client.config.get()\nconst { providers, default: defaults } = await client.config.providers()\n```\n\n---\n\n### [Sessions](#sessions)\n\nMethod\n\nDescription\n\nNotes\n\n`session.list()`\n\nList sessions\n\nReturns [`Session[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.get({ path })`\n\nGet session\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.children({ path })`\n\nList child sessions\n\nReturns [`Session[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.create({ body })`\n\nCreate session\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.delete({ path })`\n\nDelete session\n\nReturns `boolean`\n\n`session.update({ path, body })`\n\nUpdate session properties\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.init({ path, body })`\n\nAnalyze app and create `AGENTS.md`\n\nReturns `boolean`\n\n`session.abort({ path })`\n\nAbort a running session\n\nReturns `boolean`\n\n`session.share({ path })`\n\nShare session\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.unshare({ path })`\n\nUnshare session\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.summarize({ path, body })`\n\nSummarize session\n\nReturns `boolean`\n\n`session.messages({ path })`\n\nList messages in a session\n\nReturns `{ info:` [`Message`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`, parts:` [`Part[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`}[]`\n\n`session.message({ path })`\n\nGet message details\n\nReturns `{ info:` [`Message`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`, parts:` [`Part[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`}`\n\n`session.prompt({ path, body })`\n\nSend prompt message\n\n`body.noReply: true` returns UserMessage (context only). Default returns [`AssistantMessage`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts) with AI response. Supports `body.outputFormat` for [structured output](#structured-output)\n\n`session.command({ path, body })`\n\nSend command to session\n\nReturns `{ info:` [`AssistantMessage`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`, parts:` [`Part[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)`}`\n\n`session.shell({ path, body })`\n\nRun a shell command\n\nReturns [`AssistantMessage`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.revert({ path, body })`\n\nRevert a message\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`session.unrevert({ path })`\n\nRestore reverted messages\n\nReturns [`Session`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`postSessionByIdPermissionsByPermissionId({ path, body })`\n\nRespond to a permission request\n\nReturns `boolean`\n\n---\n\n#### [Examples](#examples-5)\n\n```\n// Create and manage sessionsconst session = await client.session.create({  body: { title: \"My session\" },})\nconst sessions = await client.session.list()\n// Send a prompt messageconst result = await client.session.prompt({  path: { id: session.id },  body: {    model: { providerID: \"anthropic\", modelID: \"claude-3-5-sonnet-20241022\" },    parts: [{ type: \"text\", text: \"Hello!\" }],  },})\n// Inject context without triggering AI response (useful for plugins)await client.session.prompt({  path: { id: session.id },  body: {    noReply: true,    parts: [{ type: \"text\", text: \"You are a helpful assistant.\" }],  },})\n```\n\n---\n\n### [Files](#files)\n\nMethod\n\nDescription\n\nResponse\n\n`find.text({ query })`\n\nSearch for text in files\n\nArray of match objects with `path`, `lines`, `line_number`, `absolute_offset`, `submatches`\n\n`find.files({ query })`\n\nFind files and directories by name\n\n`string[]` (paths)\n\n`find.symbols({ query })`\n\nFind workspace symbols\n\n[`Symbol[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`file.read({ query })`\n\nRead a file\n\n`{ type: \"raw\" | \"patch\", content: string }`\n\n`file.status({ query? })`\n\nGet status for tracked files\n\n[`File[]`](https://github.com/anomalyco/opencode/blob/dev/packages/sdk/js/src/gen/types.gen.ts)\n\n`find.files` supports a few optional query fields:\n\n-   `type`: `\"file\"` or `\"directory\"`\n-   `directory`: override the project root for the search\n-   `limit`: max results (1–200)\n\n---\n\n#### [Examples](#examples-6)\n\n```\n// Search and read filesconst textResults = await client.find.text({  query: { pattern: \"function.*opencode\" },})\nconst files = await client.find.files({  query: { query: \"*.ts\", type: \"file\" },})\nconst directories = await client.find.files({  query: { query: \"packages\", type: \"directory\", limit: 20 },})\nconst content = await client.file.read({  query: { path: \"src/index.ts\" },})\n```\n\n---\n\n### [TUI](#tui)\n\nMethod\n\nDescription\n\nResponse\n\n`tui.appendPrompt({ body })`\n\nAppend text to the prompt\n\n`boolean`\n\n`tui.openHelp()`\n\nOpen the help dialog\n\n`boolean`\n\n`tui.openSessions()`\n\nOpen the session selector\n\n`boolean`\n\n`tui.openThemes()`\n\nOpen the theme selector\n\n`boolean`\n\n`tui.openModels()`\n\nOpen the model selector\n\n`boolean`\n\n`tui.submitPrompt()`\n\nSubmit the current prompt\n\n`boolean`\n\n`tui.clearPrompt()`\n\nClear the prompt\n\n`boolean`\n\n`tui.executeCommand({ body })`\n\nExecute a command\n\n`boolean`\n\n`tui.showToast({ body })`\n\nShow toast notification\n\n`boolean`\n\n---\n\n#### [Examples](#examples-7)\n\n```\n// Control TUI interfaceawait client.tui.appendPrompt({  body: { text: \"Add this to prompt\" },})\nawait client.tui.showToast({  body: { message: \"Task completed\", variant: \"success\" },})\n```\n\n---\n\n### [Auth](#auth)\n\nMethod\n\nDescription\n\nResponse\n\n`auth.set({ ... })`\n\nSet authentication credentials\n\n`boolean`\n\n---\n\n#### [Examples](#examples-8)\n\n```\nawait client.auth.set({  path: { id: \"anthropic\" },  body: { type: \"api\", key: \"your-api-key\" },})\n```\n\n---\n\n### [Events](#events)\n\nMethod\n\nDescription\n\nResponse\n\n`event.subscribe()`\n\nServer-sent events stream\n\nServer-sent events stream\n\n---\n\n#### [Examples](#examples-9)\n\n```\n// Listen to real-time eventsconst events = await client.event.subscribe()for await (const event of events.stream) {  console.log(\"Event:\", event.type, event.properties)}\n```\n\n[Edit page](https://github.com/anomalyco/opencode/edit/dev/packages/web/src/content/docs/sdk.mdx)[Found a bug? Open an issue](https://github.com/anomalyco/opencode/issues/new)[Join our Discord community](https://opencode.ai/discord) Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文 \n\n© [Anomaly](https://anoma.ly)\n\nLast updated: Apr 22, 2026",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://opencode.ai/docs/sdk/ (text/html)",
+            "time": {
+              "start": 1776866471135,
+              "end": 1776866471829
+            }
+          },
+          "id": "prt_db57eaab0001BMuSbfyJJWlrfC",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e9e4a001IjFG7msS167ghW"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_415293d40d7b4a01873b47cc",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://opencode.ai/docs/tools/",
+              "format": "markdown"
+            },
+            "output": "Tools | OpenCode     [Skip to content](#_top)\n\n  [![](/docs/_astro/logo-dark.DOStV66V.svg) ![](/docs/_astro/logo-light.B0yzR0O5.svg) OpenCode](/docs/)\n\n[app.header.home](/)[app.header.docs](/docs/)\n\n[](https://github.com/anomalyco/opencode)[](https://opencode.ai/discord)\n\nSearch CtrlK\n\nCancel\n\n-   [Intro](/docs/)\n-   [Config](/docs/config/)\n-   [Providers](/docs/providers/)\n-   [Network](/docs/network/)\n-   [Enterprise](/docs/enterprise/)\n-   [Troubleshooting](/docs/troubleshooting/)\n-   [Windows](/docs/windows-wsl)\n-   Usage\n    \n    -   [Go](/docs/go/)\n    -   [TUI](/docs/tui/)\n    -   [CLI](/docs/cli/)\n    -   [Web](/docs/web/)\n    -   [IDE](/docs/ide/)\n    -   [Zen](/docs/zen/)\n    -   [Share](/docs/share/)\n    -   [GitHub](/docs/github/)\n    -   [GitLab](/docs/gitlab/)\n    \n-   Configure\n    \n    -   [Tools](/docs/tools/)\n    -   [Rules](/docs/rules/)\n    -   [Agents](/docs/agents/)\n    -   [Models](/docs/models/)\n    -   [Themes](/docs/themes/)\n    -   [Keybinds](/docs/keybinds/)\n    -   [Commands](/docs/commands/)\n    -   [Formatters](/docs/formatters/)\n    -   [Permissions](/docs/permissions/)\n    -   [LSP Servers](/docs/lsp/)\n    -   [MCP servers](/docs/mcp-servers/)\n    -   [ACP Support](/docs/acp/)\n    -   [Agent Skills](/docs/skills/)\n    -   [Custom Tools](/docs/custom-tools/)\n    \n-   Develop\n    \n    -   [SDK](/docs/sdk/)\n    -   [Server](/docs/server/)\n    -   [Plugins](/docs/plugins/)\n    -   [Ecosystem](/docs/ecosystem/)\n    \n\n[GitHub](https://github.com/anomalyco/opencode)[Discord](https://opencode.ai/discord)\n\nSelect theme DarkLightAuto   Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文\n\nOn this page\n\n-   [Overview](#_top)\n-   [Configure](#configure)\n-   [Built-in](#built-in)\n    -   [bash](#bash)\n    -   [edit](#edit)\n    -   [write](#write)\n    -   [read](#read)\n    -   [grep](#grep)\n    -   [glob](#glob)\n    -   [lsp (experimental)](#lsp-experimental)\n    -   [apply\\_patch](#apply_patch)\n    -   [skill](#skill)\n    -   [todowrite](#todowrite)\n    -   [webfetch](#webfetch)\n    -   [websearch](#websearch)\n    -   [question](#question)\n-   [Custom tools](#custom-tools)\n-   [MCP servers](#mcp-servers)\n-   [Internals](#internals)\n    -   [Ignore patterns](#ignore-patterns)\n\n## On this page\n\n-   [Overview](#_top)\n-   [Configure](#configure)\n-   [Built-in](#built-in)\n    -   [bash](#bash)\n    -   [edit](#edit)\n    -   [write](#write)\n    -   [read](#read)\n    -   [grep](#grep)\n    -   [glob](#glob)\n    -   [lsp (experimental)](#lsp-experimental)\n    -   [apply\\_patch](#apply_patch)\n    -   [skill](#skill)\n    -   [todowrite](#todowrite)\n    -   [webfetch](#webfetch)\n    -   [websearch](#websearch)\n    -   [question](#question)\n-   [Custom tools](#custom-tools)\n-   [MCP servers](#mcp-servers)\n-   [Internals](#internals)\n    -   [Ignore patterns](#ignore-patterns)\n\n# Tools\n\nManage the tools an LLM can use.\n\nTools allow the LLM to perform actions in your codebase. OpenCode comes with a set of built-in tools, but you can extend it with [custom tools](/docs/custom-tools) or [MCP servers](/docs/mcp-servers).\n\nBy default, all tools are **enabled** and don’t need permission to run. You can control tool behavior through [permissions](/docs/permissions).\n\n---\n\n## [Configure](#configure)\n\nUse the `permission` field to control tool behavior. You can allow, deny, or require approval for each tool.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"edit\": \"deny\",    \"bash\": \"ask\",    \"webfetch\": \"allow\"  }}\n```\n\nYou can also use wildcards to control multiple tools at once. For example, to require approval for all tools from an MCP server:\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"mymcp_*\": \"ask\"  }}\n```\n\n[Learn more](/docs/permissions) about configuring permissions.\n\n---\n\n## [Built-in](#built-in)\n\nHere are all the built-in tools available in OpenCode.\n\n---\n\n### [bash](#bash)\n\nExecute shell commands in your project environment.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"bash\": \"allow\"  }}\n```\n\nThis tool allows the LLM to run terminal commands like `npm install`, `git status`, or any other shell command.\n\n---\n\n### [edit](#edit)\n\nModify existing files using exact string replacements.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"edit\": \"allow\"  }}\n```\n\nThis tool performs precise edits to files by replacing exact text matches. It’s the primary way the LLM modifies code.\n\n---\n\n### [write](#write)\n\nCreate new files or overwrite existing ones.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"edit\": \"allow\"  }}\n```\n\nUse this to allow the LLM to create new files. It will overwrite existing files if they already exist.\n\nNote\n\nThe `write` tool is controlled by the `edit` permission, which covers all file modifications (`edit`, `write`, `apply_patch`).\n\n---\n\n### [read](#read)\n\nRead file contents from your codebase.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"read\": \"allow\"  }}\n```\n\nThis tool reads files and returns their contents. It supports reading specific line ranges for large files.\n\n---\n\n### [grep](#grep)\n\nSearch file contents using regular expressions.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"grep\": \"allow\"  }}\n```\n\nFast content search across your codebase. Supports full regex syntax and file pattern filtering.\n\n---\n\n### [glob](#glob)\n\nFind files by pattern matching.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"glob\": \"allow\"  }}\n```\n\nSearch for files using glob patterns like `**/*.js` or `src/**/*.ts`. Returns matching file paths sorted by modification time.\n\n---\n\n### [lsp (experimental)](#lsp-experimental)\n\nInteract with your configured LSP servers to get code intelligence features like definitions, references, hover info, and call hierarchy.\n\nNote\n\nThis tool is only available when `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` (or `OPENCODE_EXPERIMENTAL=true`).\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"lsp\": \"allow\"  }}\n```\n\nSupported operations include `goToDefinition`, `findReferences`, `hover`, `documentSymbol`, `workspaceSymbol`, `goToImplementation`, `prepareCallHierarchy`, `incomingCalls`, and `outgoingCalls`.\n\nTo configure which LSP servers are available for your project, see [LSP Servers](/docs/lsp).\n\n---\n\n### [apply\\_patch](#apply_patch)\n\nApply patches to files.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"edit\": \"allow\"  }}\n```\n\nThis tool applies patch files to your codebase. Useful for applying diffs and patches from various sources.\n\nWhen handling `tool.execute.before` or `tool.execute.after` hooks, check `input.tool === \"apply_patch\"` (not `\"patch\"`).\n\n`apply_patch` uses `output.args.patchText` instead of `output.args.filePath`. Paths are embedded in marker lines within `patchText` and are relative to the project root (for example: `*** Add File: src/new-file.ts`, `*** Update File: src/existing.ts`, `*** Move to: src/renamed.ts`, `*** Delete File: src/obsolete.ts`).\n\nNote\n\nThe `apply_patch` tool is controlled by the `edit` permission, which covers all file modifications (`edit`, `write`, `apply_patch`).\n\n---\n\n### [skill](#skill)\n\nLoad a [skill](/docs/skills) (a `SKILL.md` file) and return its content in the conversation.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"skill\": \"allow\"  }}\n```\n\n---\n\n### [todowrite](#todowrite)\n\nManage todo lists during coding sessions.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"todowrite\": \"allow\"  }}\n```\n\nCreates and updates task lists to track progress during complex operations. The LLM uses this to organize multi-step tasks.\n\nNote\n\nThis tool is disabled for subagents by default, but you can enable it manually. [Learn more](/docs/agents/#permissions)\n\n---\n\n### [webfetch](#webfetch)\n\nFetch web content.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"webfetch\": \"allow\"  }}\n```\n\nAllows the LLM to fetch and read web pages. Useful for looking up documentation or researching online resources.\n\n---\n\n### [websearch](#websearch)\n\nSearch the web for information.\n\nNote\n\nThis tool is only available when using the OpenCode provider or when the `OPENCODE_ENABLE_EXA` environment variable is set to any truthy value (e.g., `true` or `1`).\n\nTo enable when launching OpenCode:\n\nTerminal window\n\n```\nOPENCODE_ENABLE_EXA=1 opencode\n```\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"websearch\": \"allow\"  }}\n```\n\nPerforms web searches using Exa AI to find relevant information online. Useful for researching topics, finding current events, or gathering information beyond the training data cutoff.\n\nNo API key is required — the tool connects directly to Exa AI’s hosted MCP service without authentication.\n\nTip\n\nUse `websearch` when you need to find information (discovery), and `webfetch` when you need to retrieve content from a specific URL (retrieval).\n\n---\n\n### [question](#question)\n\nAsk the user questions during execution.\n\nopencode.json\n\n```\n{  \"$schema\": \"https://opencode.ai/config.json\",  \"permission\": {    \"question\": \"allow\"  }}\n```\n\nThis tool allows the LLM to ask the user questions during a task. It’s useful for:\n\n-   Gathering user preferences or requirements\n-   Clarifying ambiguous instructions\n-   Getting decisions on implementation choices\n-   Offering choices about what direction to take\n\nEach question includes a header, the question text, and a list of options. Users can select from the provided options or type a custom answer. When there are multiple questions, users can navigate between them before submitting all answers.\n\n---\n\n## [Custom tools](#custom-tools)\n\nCustom tools let you define your own functions that the LLM can call. These are defined in your config file and can execute arbitrary code.\n\n[Learn more](/docs/custom-tools) about creating custom tools.\n\n---\n\n## [MCP servers](#mcp-servers)\n\nMCP (Model Context Protocol) servers allow you to integrate external tools and services. This includes database access, API integrations, and third-party services.\n\n[Learn more](/docs/mcp-servers) about configuring MCP servers.\n\n---\n\n## [Internals](#internals)\n\nInternally, tools like `grep` and `glob` use [ripgrep](https://github.com/BurntSushi/ripgrep) under the hood. By default, ripgrep respects `.gitignore` patterns, which means files and directories listed in your `.gitignore` will be excluded from searches and listings.\n\n---\n\n### [Ignore patterns](#ignore-patterns)\n\nTo include files that would normally be ignored, create a `.ignore` file in your project root. This file can explicitly allow certain paths.\n\n.ignore\n\n```\n!node_modules/!dist/!build/\n```\n\nFor example, this `.ignore` file allows ripgrep to search within `node_modules/`, `dist/`, and `build/` directories even if they’re listed in `.gitignore`.\n\n[Edit page](https://github.com/anomalyco/opencode/edit/dev/packages/web/src/content/docs/tools.mdx)[Found a bug? Open an issue](https://github.com/anomalyco/opencode/issues/new)[Join our Discord community](https://opencode.ai/discord) Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文 \n\n© [Anomaly](https://anoma.ly)\n\nLast updated: Apr 22, 2026",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://opencode.ai/docs/tools/ (text/html)",
+            "time": {
+              "start": 1776866472015,
+              "end": 1776866472462
+            }
+          },
+          "id": "prt_db57eadfd001OkD4lZ423XzI4T",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e9e4a001IjFG7msS167ghW"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-finish",
+          "tokens": {
+            "total": 22591,
+            "input": 22440,
+            "output": 136,
+            "reasoning": 15,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db57eb213001xbGsjB2suid6Bi",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57e9e4a001IjFG7msS167ghW"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 34589,
+          "input": 34469,
+          "output": 94,
+          "reasoning": 26,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776866472559,
+          "completed": 1776866477639
+        },
+        "finish": "tool-calls",
+        "id": "msg_db57eb26f001SogK3I96B4bBLW",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-start",
+          "id": "prt_db57ebc96001qF0AI7xZXqq5Hd",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57eb26f001SogK3I96B4bBLW"
+        },
+        {
+          "type": "reasoning",
+          "text": "Now let me also check the CLI documentation for any scheduling-related commands, and search the ecosystem page for any cron/scheduler plugins.\n",
+          "time": {
+            "start": 1776866475167,
+            "end": 1776866475824
+          },
+          "id": "prt_db57ebc9f0019B5hH2nrCjBLMl",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57eb26f001SogK3I96B4bBLW"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_38e76d580d894279ab3fb1ed",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://opencode.ai/docs/cli/",
+              "format": "markdown"
+            },
+            "output": "CLI | OpenCode     [Skip to content](#_top)\n\n  [![](/docs/_astro/logo-dark.DOStV66V.svg) ![](/docs/_astro/logo-light.B0yzR0O5.svg) OpenCode](/docs/)\n\n[app.header.home](/)[app.header.docs](/docs/)\n\n[](https://github.com/anomalyco/opencode)[](https://opencode.ai/discord)\n\nSearch CtrlK\n\nCancel\n\n-   [Intro](/docs/)\n-   [Config](/docs/config/)\n-   [Providers](/docs/providers/)\n-   [Network](/docs/network/)\n-   [Enterprise](/docs/enterprise/)\n-   [Troubleshooting](/docs/troubleshooting/)\n-   [Windows](/docs/windows-wsl)\n-   Usage\n    \n    -   [Go](/docs/go/)\n    -   [TUI](/docs/tui/)\n    -   [CLI](/docs/cli/)\n    -   [Web](/docs/web/)\n    -   [IDE](/docs/ide/)\n    -   [Zen](/docs/zen/)\n    -   [Share](/docs/share/)\n    -   [GitHub](/docs/github/)\n    -   [GitLab](/docs/gitlab/)\n    \n-   Configure\n    \n    -   [Tools](/docs/tools/)\n    -   [Rules](/docs/rules/)\n    -   [Agents](/docs/agents/)\n    -   [Models](/docs/models/)\n    -   [Themes](/docs/themes/)\n    -   [Keybinds](/docs/keybinds/)\n    -   [Commands](/docs/commands/)\n    -   [Formatters](/docs/formatters/)\n    -   [Permissions](/docs/permissions/)\n    -   [LSP Servers](/docs/lsp/)\n    -   [MCP servers](/docs/mcp-servers/)\n    -   [ACP Support](/docs/acp/)\n    -   [Agent Skills](/docs/skills/)\n    -   [Custom Tools](/docs/custom-tools/)\n    \n-   Develop\n    \n    -   [SDK](/docs/sdk/)\n    -   [Server](/docs/server/)\n    -   [Plugins](/docs/plugins/)\n    -   [Ecosystem](/docs/ecosystem/)\n    \n\n[GitHub](https://github.com/anomalyco/opencode)[Discord](https://opencode.ai/discord)\n\nSelect theme DarkLightAuto   Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文\n\nOn this page\n\n-   [Overview](#_top)\n    -   [tui](#tui)\n-   [Commands](#commands)\n    -   [agent](#agent)\n    -   [attach](#attach)\n    -   [auth](#auth)\n    -   [github](#github)\n    -   [mcp](#mcp)\n    -   [models](#models)\n    -   [run](#run-1)\n    -   [serve](#serve)\n    -   [session](#session)\n    -   [stats](#stats)\n    -   [export](#export)\n    -   [import](#import)\n    -   [web](#web)\n    -   [acp](#acp)\n    -   [uninstall](#uninstall)\n    -   [upgrade](#upgrade)\n-   [Global Flags](#global-flags)\n-   [Environment variables](#environment-variables)\n    -   [Experimental](#experimental)\n\n## On this page\n\n-   [Overview](#_top)\n    -   [tui](#tui)\n-   [Commands](#commands)\n    -   [agent](#agent)\n    -   [attach](#attach)\n    -   [auth](#auth)\n    -   [github](#github)\n    -   [mcp](#mcp)\n    -   [models](#models)\n    -   [run](#run-1)\n    -   [serve](#serve)\n    -   [session](#session)\n    -   [stats](#stats)\n    -   [export](#export)\n    -   [import](#import)\n    -   [web](#web)\n    -   [acp](#acp)\n    -   [uninstall](#uninstall)\n    -   [upgrade](#upgrade)\n-   [Global Flags](#global-flags)\n-   [Environment variables](#environment-variables)\n    -   [Experimental](#experimental)\n\n# CLI\n\nOpenCode CLI options and commands.\n\nThe OpenCode CLI by default starts the [TUI](/docs/tui) when run without any arguments.\n\nTerminal window\n\n```\nopencode\n```\n\nBut it also accepts commands as documented on this page. This allows you to interact with OpenCode programmatically.\n\nTerminal window\n\n```\nopencode run \"Explain how closures work in JavaScript\"\n```\n\n---\n\n### [tui](#tui)\n\nStart the OpenCode terminal user interface.\n\nTerminal window\n\n```\nopencode [project]\n```\n\n#### [Flags](#flags)\n\nFlag\n\nShort\n\nDescription\n\n`--continue`\n\n`-c`\n\nContinue the last session\n\n`--session`\n\n`-s`\n\nSession ID to continue\n\n`--fork`\n\nFork the session when continuing (use with `--continue` or `--session`)\n\n`--prompt`\n\nPrompt to use\n\n`--model`\n\n`-m`\n\nModel to use in the form of provider/model\n\n`--agent`\n\nAgent to use\n\n`--port`\n\nPort to listen on\n\n`--hostname`\n\nHostname to listen on\n\n---\n\n## [Commands](#commands)\n\nThe OpenCode CLI also has the following commands.\n\n---\n\n### [agent](#agent)\n\nManage agents for OpenCode.\n\nTerminal window\n\n```\nopencode agent [command]\n```\n\n---\n\n### [attach](#attach)\n\nAttach a terminal to an already running OpenCode backend server started via `serve` or `web` commands.\n\nTerminal window\n\n```\nopencode attach [url]\n```\n\nThis allows using the TUI with a remote OpenCode backend. For example:\n\nTerminal window\n\n```\n# Start the backend server for web/mobile accessopencode web --port 4096 --hostname 0.0.0.0\n# In another terminal, attach the TUI to the running backendopencode attach http://10.20.30.40:4096\n```\n\n#### [Flags](#flags-1)\n\nFlag\n\nShort\n\nDescription\n\n`--dir`\n\nWorking directory to start TUI in\n\n`--session`\n\n`-s`\n\nSession ID to continue\n\n---\n\n#### [create](#create)\n\nCreate a new agent with custom configuration.\n\nTerminal window\n\n```\nopencode agent create\n```\n\nThis command will guide you through creating a new agent with a custom system prompt and tool configuration.\n\n---\n\n#### [list](#list)\n\nList all available agents.\n\nTerminal window\n\n```\nopencode agent list\n```\n\n---\n\n### [auth](#auth)\n\nCommand to manage credentials and login for providers.\n\nTerminal window\n\n```\nopencode auth [command]\n```\n\n---\n\n#### [login](#login)\n\nOpenCode is powered by the provider list at [Models.dev](https://models.dev), so you can use `opencode auth login` to configure API keys for any provider you’d like to use. This is stored in `~/.local/share/opencode/auth.json`.\n\nTerminal window\n\n```\nopencode auth login\n```\n\nWhen OpenCode starts up it loads the providers from the credentials file. And if there are any keys defined in your environments or a `.env` file in your project.\n\n---\n\n#### [list](#list-1)\n\nLists all the authenticated providers as stored in the credentials file.\n\nTerminal window\n\n```\nopencode auth list\n```\n\nOr the short version.\n\nTerminal window\n\n```\nopencode auth ls\n```\n\n---\n\n#### [logout](#logout)\n\nLogs you out of a provider by clearing it from the credentials file.\n\nTerminal window\n\n```\nopencode auth logout\n```\n\n---\n\n### [github](#github)\n\nManage the GitHub agent for repository automation.\n\nTerminal window\n\n```\nopencode github [command]\n```\n\n---\n\n#### [install](#install)\n\nInstall the GitHub agent in your repository.\n\nTerminal window\n\n```\nopencode github install\n```\n\nThis sets up the necessary GitHub Actions workflow and guides you through the configuration process. [Learn more](/docs/github).\n\n---\n\n#### [run](#run)\n\nRun the GitHub agent. This is typically used in GitHub Actions.\n\nTerminal window\n\n```\nopencode github run\n```\n\n##### [Flags](#flags-2)\n\nFlag\n\nDescription\n\n`--event`\n\nGitHub mock event to run the agent for\n\n`--token`\n\nGitHub personal access token\n\n---\n\n### [mcp](#mcp)\n\nManage Model Context Protocol servers.\n\nTerminal window\n\n```\nopencode mcp [command]\n```\n\n---\n\n#### [add](#add)\n\nAdd an MCP server to your configuration.\n\nTerminal window\n\n```\nopencode mcp add\n```\n\nThis command will guide you through adding either a local or remote MCP server.\n\n---\n\n#### [list](#list-2)\n\nList all configured MCP servers and their connection status.\n\nTerminal window\n\n```\nopencode mcp list\n```\n\nOr use the short version.\n\nTerminal window\n\n```\nopencode mcp ls\n```\n\n---\n\n#### [auth](#auth-1)\n\nAuthenticate with an OAuth-enabled MCP server.\n\nTerminal window\n\n```\nopencode mcp auth [name]\n```\n\nIf you don’t provide a server name, you’ll be prompted to select from available OAuth-capable servers.\n\nYou can also list OAuth-capable servers and their authentication status.\n\nTerminal window\n\n```\nopencode mcp auth list\n```\n\nOr use the short version.\n\nTerminal window\n\n```\nopencode mcp auth ls\n```\n\n---\n\n#### [logout](#logout-1)\n\nRemove OAuth credentials for an MCP server.\n\nTerminal window\n\n```\nopencode mcp logout [name]\n```\n\n---\n\n#### [debug](#debug)\n\nDebug OAuth connection issues for an MCP server.\n\nTerminal window\n\n```\nopencode mcp debug <name>\n```\n\n---\n\n### [models](#models)\n\nList all available models from configured providers.\n\nTerminal window\n\n```\nopencode models [provider]\n```\n\nThis command displays all models available across your configured providers in the format `provider/model`.\n\nThis is useful for figuring out the exact model name to use in [your config](/docs/config/).\n\nYou can optionally pass a provider ID to filter models by that provider.\n\nTerminal window\n\n```\nopencode models anthropic\n```\n\n#### [Flags](#flags-3)\n\nFlag\n\nDescription\n\n`--refresh`\n\nRefresh the models cache from models.dev\n\n`--verbose`\n\nUse more verbose model output (includes metadata like costs)\n\nUse the `--refresh` flag to update the cached model list. This is useful when new models have been added to a provider and you want to see them in OpenCode.\n\nTerminal window\n\n```\nopencode models --refresh\n```\n\n---\n\n### [run](#run-1)\n\nRun opencode in non-interactive mode by passing a prompt directly.\n\nTerminal window\n\n```\nopencode run [message..]\n```\n\nThis is useful for scripting, automation, or when you want a quick answer without launching the full TUI. For example.\n\nTerminal window\n\n```\nopencode run Explain the use of context in Go\n```\n\nYou can also attach to a running `opencode serve` instance to avoid MCP server cold boot times on every run:\n\nTerminal window\n\n```\n# Start a headless server in one terminalopencode serve\n# In another terminal, run commands that attach to itopencode run --attach http://localhost:4096 \"Explain async/await in JavaScript\"\n```\n\n#### [Flags](#flags-4)\n\nFlag\n\nShort\n\nDescription\n\n`--command`\n\nThe command to run, use message for args\n\n`--continue`\n\n`-c`\n\nContinue the last session\n\n`--session`\n\n`-s`\n\nSession ID to continue\n\n`--fork`\n\nFork the session when continuing (use with `--continue` or `--session`)\n\n`--share`\n\nShare the session\n\n`--model`\n\n`-m`\n\nModel to use in the form of provider/model\n\n`--agent`\n\nAgent to use\n\n`--file`\n\n`-f`\n\nFile(s) to attach to message\n\n`--format`\n\nFormat: default (formatted) or json (raw JSON events)\n\n`--title`\n\nTitle for the session (uses truncated prompt if no value provided)\n\n`--attach`\n\nAttach to a running opencode server (e.g., [http://localhost:4096](http://localhost:4096))\n\n`--port`\n\nPort for the local server (defaults to random port)\n\n`--dangerously-skip-permissions`\n\nAuto-approve permissions that are not explicitly denied (dangerous!)\n\n---\n\n### [serve](#serve)\n\nStart a headless OpenCode server for API access. Check out the [server docs](/docs/server) for the full HTTP interface.\n\nTerminal window\n\n```\nopencode serve\n```\n\nThis starts an HTTP server that provides API access to opencode functionality without the TUI interface. Set `OPENCODE_SERVER_PASSWORD` to enable HTTP basic auth (username defaults to `opencode`).\n\n#### [Flags](#flags-5)\n\nFlag\n\nDescription\n\n`--port`\n\nPort to listen on\n\n`--hostname`\n\nHostname to listen on\n\n`--mdns`\n\nEnable mDNS discovery\n\n`--cors`\n\nAdditional browser origin(s) to allow CORS\n\n---\n\n### [session](#session)\n\nManage OpenCode sessions.\n\nTerminal window\n\n```\nopencode session [command]\n```\n\n---\n\n#### [list](#list-3)\n\nList all OpenCode sessions.\n\nTerminal window\n\n```\nopencode session list\n```\n\n##### [Flags](#flags-6)\n\nFlag\n\nShort\n\nDescription\n\n`--max-count`\n\n`-n`\n\nLimit to N most recent sessions\n\n`--format`\n\nOutput format: table or json (table)\n\n---\n\n### [stats](#stats)\n\nShow token usage and cost statistics for your OpenCode sessions.\n\nTerminal window\n\n```\nopencode stats\n```\n\n#### [Flags](#flags-7)\n\nFlag\n\nDescription\n\n`--days`\n\nShow stats for the last N days (all time)\n\n`--tools`\n\nNumber of tools to show (all)\n\n`--models`\n\nShow model usage breakdown (hidden by default). Pass a number to show top N\n\n`--project`\n\nFilter by project (all projects, empty string: current project)\n\n---\n\n### [export](#export)\n\nExport session data as JSON.\n\nTerminal window\n\n```\nopencode export [sessionID]\n```\n\nIf you don’t provide a session ID, you’ll be prompted to select from available sessions.\n\n---\n\n### [import](#import)\n\nImport session data from a JSON file or OpenCode share URL.\n\nTerminal window\n\n```\nopencode import <file>\n```\n\nYou can import from a local file or an OpenCode share URL.\n\nTerminal window\n\n```\nopencode import session.jsonopencode import https://opncd.ai/s/abc123\n```\n\n---\n\n### [web](#web)\n\nStart a headless OpenCode server with a web interface.\n\nTerminal window\n\n```\nopencode web\n```\n\nThis starts an HTTP server and opens a web browser to access OpenCode through a web interface. Set `OPENCODE_SERVER_PASSWORD` to enable HTTP basic auth (username defaults to `opencode`).\n\n#### [Flags](#flags-8)\n\nFlag\n\nDescription\n\n`--port`\n\nPort to listen on\n\n`--hostname`\n\nHostname to listen on\n\n`--mdns`\n\nEnable mDNS discovery\n\n`--cors`\n\nAdditional browser origin(s) to allow CORS\n\n---\n\n### [acp](#acp)\n\nStart an ACP (Agent Client Protocol) server.\n\nTerminal window\n\n```\nopencode acp\n```\n\nThis command starts an ACP server that communicates via stdin/stdout using nd-JSON.\n\n#### [Flags](#flags-9)\n\nFlag\n\nDescription\n\n`--cwd`\n\nWorking directory\n\n`--port`\n\nPort to listen on\n\n`--hostname`\n\nHostname to listen on\n\n---\n\n### [uninstall](#uninstall)\n\nUninstall OpenCode and remove all related files.\n\nTerminal window\n\n```\nopencode uninstall\n```\n\n#### [Flags](#flags-10)\n\nFlag\n\nShort\n\nDescription\n\n`--keep-config`\n\n`-c`\n\nKeep configuration files\n\n`--keep-data`\n\n`-d`\n\nKeep session data and snapshots\n\n`--dry-run`\n\nShow what would be removed without removing\n\n`--force`\n\n`-f`\n\nSkip confirmation prompts\n\n---\n\n### [upgrade](#upgrade)\n\nUpdates opencode to the latest version or a specific version.\n\nTerminal window\n\n```\nopencode upgrade [target]\n```\n\nTo upgrade to the latest version.\n\nTerminal window\n\n```\nopencode upgrade\n```\n\nTo upgrade to a specific version.\n\nTerminal window\n\n```\nopencode upgrade v0.1.48\n```\n\n#### [Flags](#flags-11)\n\nFlag\n\nShort\n\nDescription\n\n`--method`\n\n`-m`\n\nThe installation method that was used; curl, npm, pnpm, bun, brew\n\n---\n\n## [Global Flags](#global-flags)\n\nThe opencode CLI takes the following global flags.\n\nFlag\n\nShort\n\nDescription\n\n`--help`\n\n`-h`\n\nDisplay help\n\n`--version`\n\n`-v`\n\nPrint version number\n\n`--print-logs`\n\nPrint logs to stderr\n\n`--log-level`\n\nLog level (DEBUG, INFO, WARN, ERROR)\n\n---\n\n## [Environment variables](#environment-variables)\n\nOpenCode can be configured using environment variables.\n\nVariable\n\nType\n\nDescription\n\n`OPENCODE_AUTO_SHARE`\n\nboolean\n\nAutomatically share sessions\n\n`OPENCODE_GIT_BASH_PATH`\n\nstring\n\nPath to Git Bash executable on Windows\n\n`OPENCODE_CONFIG`\n\nstring\n\nPath to config file\n\n`OPENCODE_TUI_CONFIG`\n\nstring\n\nPath to TUI config file\n\n`OPENCODE_CONFIG_DIR`\n\nstring\n\nPath to config directory\n\n`OPENCODE_CONFIG_CONTENT`\n\nstring\n\nInline json config content\n\n`OPENCODE_DISABLE_AUTOUPDATE`\n\nboolean\n\nDisable automatic update checks\n\n`OPENCODE_DISABLE_PRUNE`\n\nboolean\n\nDisable pruning of old data\n\n`OPENCODE_DISABLE_TERMINAL_TITLE`\n\nboolean\n\nDisable automatic terminal title updates\n\n`OPENCODE_PERMISSION`\n\nstring\n\nInlined json permissions config\n\n`OPENCODE_DISABLE_DEFAULT_PLUGINS`\n\nboolean\n\nDisable default plugins\n\n`OPENCODE_DISABLE_LSP_DOWNLOAD`\n\nboolean\n\nDisable automatic LSP server downloads\n\n`OPENCODE_ENABLE_EXPERIMENTAL_MODELS`\n\nboolean\n\nEnable experimental models\n\n`OPENCODE_DISABLE_AUTOCOMPACT`\n\nboolean\n\nDisable automatic context compaction\n\n`OPENCODE_DISABLE_CLAUDE_CODE`\n\nboolean\n\nDisable reading from `.claude` (prompt + skills)\n\n`OPENCODE_DISABLE_CLAUDE_CODE_PROMPT`\n\nboolean\n\nDisable reading `~/.claude/CLAUDE.md`\n\n`OPENCODE_DISABLE_CLAUDE_CODE_SKILLS`\n\nboolean\n\nDisable loading `.claude/skills`\n\n`OPENCODE_DISABLE_MODELS_FETCH`\n\nboolean\n\nDisable fetching models from remote sources\n\n`OPENCODE_DISABLE_MOUSE`\n\nboolean\n\nDisable mouse capture in the TUI\n\n`OPENCODE_FAKE_VCS`\n\nstring\n\nFake VCS provider for testing purposes\n\n`OPENCODE_CLIENT`\n\nstring\n\nClient identifier (defaults to `cli`)\n\n`OPENCODE_ENABLE_EXA`\n\nboolean\n\nEnable Exa web search tools\n\n`OPENCODE_SERVER_PASSWORD`\n\nstring\n\nEnable basic auth for `serve`/`web`\n\n`OPENCODE_SERVER_USERNAME`\n\nstring\n\nOverride basic auth username (default `opencode`)\n\n`OPENCODE_MODELS_URL`\n\nstring\n\nCustom URL for fetching models configuration\n\n---\n\n### [Experimental](#experimental)\n\nThese environment variables enable experimental features that may change or be removed.\n\nVariable\n\nType\n\nDescription\n\n`OPENCODE_EXPERIMENTAL`\n\nboolean\n\nEnable all experimental features\n\n`OPENCODE_EXPERIMENTAL_ICON_DISCOVERY`\n\nboolean\n\nEnable icon discovery\n\n`OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT`\n\nboolean\n\nDisable copy on select in TUI\n\n`OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS`\n\nnumber\n\nDefault timeout for bash commands in ms\n\n`OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX`\n\nnumber\n\nMax output tokens for LLM responses\n\n`OPENCODE_EXPERIMENTAL_FILEWATCHER`\n\nboolean\n\nEnable file watcher for entire dir\n\n`OPENCODE_EXPERIMENTAL_OXFMT`\n\nboolean\n\nEnable oxfmt formatter\n\n`OPENCODE_EXPERIMENTAL_LSP_TOOL`\n\nboolean\n\nEnable experimental LSP tool\n\n`OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER`\n\nboolean\n\nDisable file watcher\n\n`OPENCODE_EXPERIMENTAL_EXA`\n\nboolean\n\nEnable experimental Exa features\n\n`OPENCODE_EXPERIMENTAL_LSP_TY`\n\nboolean\n\nEnable TY LSP for python files\n\n`OPENCODE_EXPERIMENTAL_MARKDOWN`\n\nboolean\n\nEnable experimental markdown features\n\n`OPENCODE_EXPERIMENTAL_PLAN_MODE`\n\nboolean\n\nEnable plan mode\n\n[Edit page](https://github.com/anomalyco/opencode/edit/dev/packages/web/src/content/docs/cli.mdx)[Found a bug? Open an issue](https://github.com/anomalyco/opencode/issues/new)[Join our Discord community](https://opencode.ai/discord) Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文 \n\n© [Anomaly](https://anoma.ly)\n\nLast updated: Apr 22, 2026",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://opencode.ai/docs/cli/ (text/html)",
+            "time": {
+              "start": 1776866476404,
+              "end": 1776866476848
+            }
+          },
+          "id": "prt_db57ebf32001m1YXWBy5V4WqAW",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57eb26f001SogK3I96B4bBLW"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_4fb083dce0a54b9f8348d99d",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://opencode.ai/docs/ecosystem/",
+              "format": "markdown"
+            },
+            "output": "Ecosystem | OpenCode     [Skip to content](#_top)\n\n  [![](/docs/_astro/logo-dark.DOStV66V.svg) ![](/docs/_astro/logo-light.B0yzR0O5.svg) OpenCode](/docs/)\n\n[app.header.home](/)[app.header.docs](/docs/)\n\n[](https://github.com/anomalyco/opencode)[](https://opencode.ai/discord)\n\nSearch CtrlK\n\nCancel\n\n-   [Intro](/docs/)\n-   [Config](/docs/config/)\n-   [Providers](/docs/providers/)\n-   [Network](/docs/network/)\n-   [Enterprise](/docs/enterprise/)\n-   [Troubleshooting](/docs/troubleshooting/)\n-   [Windows](/docs/windows-wsl)\n-   Usage\n    \n    -   [Go](/docs/go/)\n    -   [TUI](/docs/tui/)\n    -   [CLI](/docs/cli/)\n    -   [Web](/docs/web/)\n    -   [IDE](/docs/ide/)\n    -   [Zen](/docs/zen/)\n    -   [Share](/docs/share/)\n    -   [GitHub](/docs/github/)\n    -   [GitLab](/docs/gitlab/)\n    \n-   Configure\n    \n    -   [Tools](/docs/tools/)\n    -   [Rules](/docs/rules/)\n    -   [Agents](/docs/agents/)\n    -   [Models](/docs/models/)\n    -   [Themes](/docs/themes/)\n    -   [Keybinds](/docs/keybinds/)\n    -   [Commands](/docs/commands/)\n    -   [Formatters](/docs/formatters/)\n    -   [Permissions](/docs/permissions/)\n    -   [LSP Servers](/docs/lsp/)\n    -   [MCP servers](/docs/mcp-servers/)\n    -   [ACP Support](/docs/acp/)\n    -   [Agent Skills](/docs/skills/)\n    -   [Custom Tools](/docs/custom-tools/)\n    \n-   Develop\n    \n    -   [SDK](/docs/sdk/)\n    -   [Server](/docs/server/)\n    -   [Plugins](/docs/plugins/)\n    -   [Ecosystem](/docs/ecosystem/)\n    \n\n[GitHub](https://github.com/anomalyco/opencode)[Discord](https://opencode.ai/discord)\n\nSelect theme DarkLightAuto   Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文\n\nOn this page\n\n-   [Overview](#_top)\n-   [Plugins](#plugins)\n-   [Projects](#projects)\n-   [Agents](#agents)\n\n## On this page\n\n-   [Overview](#_top)\n-   [Plugins](#plugins)\n-   [Projects](#projects)\n-   [Agents](#agents)\n\n# Ecosystem\n\nProjects and integrations built with OpenCode.\n\nA collection of community projects built on OpenCode.\n\nNote\n\nWant to add your OpenCode related project to this list? Submit a PR.\n\nYou can also check out [awesome-opencode](https://github.com/awesome-opencode/awesome-opencode) and [opencode.cafe](https://opencode.cafe), a community that aggregates the ecosystem and community.\n\n---\n\n## [Plugins](#plugins)\n\nName\n\nDescription\n\n[opencode-daytona](https://github.com/daytonaio/daytona/tree/main/libs/opencode-plugin)\n\nAutomatically run OpenCode sessions in isolated Daytona sandboxes with git sync and live previews\n\n[opencode-helicone-session](https://github.com/H2Shami/opencode-helicone-session)\n\nAutomatically inject Helicone session headers for request grouping\n\n[opencode-type-inject](https://github.com/nick-vi/opencode-type-inject)\n\nAuto-inject TypeScript/Svelte types into file reads with lookup tools\n\n[opencode-openai-codex-auth](https://github.com/numman-ali/opencode-openai-codex-auth)\n\nUse your ChatGPT Plus/Pro subscription instead of API credits\n\n[opencode-gemini-auth](https://github.com/jenslys/opencode-gemini-auth)\n\nUse your existing Gemini plan instead of API billing\n\n[opencode-antigravity-auth](https://github.com/NoeFabris/opencode-antigravity-auth)\n\nUse Antigravity’s free models instead of API billing\n\n[opencode-devcontainers](https://github.com/athal7/opencode-devcontainers)\n\nMulti-branch devcontainer isolation with shallow clones and auto-assigned ports\n\n[opencode-google-antigravity-auth](https://github.com/shekohex/opencode-google-antigravity-auth)\n\nGoogle Antigravity OAuth Plugin, with support for Google Search, and more robust API handling\n\n[opencode-dynamic-context-pruning](https://github.com/Tarquinen/opencode-dynamic-context-pruning)\n\nOptimize token usage by pruning obsolete tool outputs\n\n[opencode-vibeguard](https://github.com/inkdust2021/opencode-vibeguard)\n\nRedact secrets/PII into VibeGuard-style placeholders before LLM calls; restore locally\n\n[opencode-websearch-cited](https://github.com/ghoulr/opencode-websearch-cited.git)\n\nAdd native websearch support for supported providers with Google grounded style\n\n[opencode-pty](https://github.com/shekohex/opencode-pty.git)\n\nEnables AI agents to run background processes in a PTY, send interactive input to them.\n\n[opencode-shell-strategy](https://github.com/JRedeker/opencode-shell-strategy)\n\nInstructions for non-interactive shell commands - prevents hangs from TTY-dependent operations\n\n[opencode-wakatime](https://github.com/angristan/opencode-wakatime)\n\nTrack OpenCode usage with Wakatime\n\n[opencode-md-table-formatter](https://github.com/franlol/opencode-md-table-formatter/tree/main)\n\nClean up markdown tables produced by LLMs\n\n[opencode-morph-fast-apply](https://github.com/JRedeker/opencode-morph-fast-apply)\n\n10x faster code editing with Morph Fast Apply API and lazy edit markers\n\n[opencode-morph-plugin](https://github.com/morphllm/opencode-morph-plugin)\n\nFast Apply editing, WarpGrep codebase search, and context compaction via Morph\n\n[oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)\n\nBackground agents, pre-built LSP/AST/MCP tools, curated agents, Claude Code compatible\n\n[opencode-notificator](https://github.com/panta82/opencode-notificator)\n\nDesktop notifications and sound alerts for OpenCode sessions\n\n[opencode-notifier](https://github.com/mohak34/opencode-notifier)\n\nDesktop notifications and sound alerts for permission, completion, and error events\n\n[opencode-zellij-namer](https://github.com/24601/opencode-zellij-namer)\n\nAI-powered automatic Zellij session naming based on OpenCode context\n\n[opencode-skillful](https://github.com/zenobi-us/opencode-skillful)\n\nAllow OpenCode agents to lazy load prompts on demand with skill discovery and injection\n\n[opencode-supermemory](https://github.com/supermemoryai/opencode-supermemory)\n\nPersistent memory across sessions using Supermemory\n\n[@plannotator/opencode](https://github.com/backnotprop/plannotator/tree/main/apps/opencode-plugin)\n\nInteractive plan review with visual annotation and private/offline sharing\n\n[@openspoon/subtask2](https://github.com/spoons-and-mirrors/subtask2)\n\nExtend opencode /commands into a powerful orchestration system with granular flow control\n\n[opencode-scheduler](https://github.com/different-ai/opencode-scheduler)\n\nSchedule recurring jobs using launchd (Mac) or systemd (Linux) with cron syntax\n\n[opencode-conductor](https://github.com/derekbar90/opencode-conductor)\n\nProtocol-Driven Workflow: Automation of the Context -> Spec -> Plan -> Implement lifecycle.\n\n[micode](https://github.com/vtemian/micode)\n\nStructured Brainstorm → Plan → Implement workflow with session continuity\n\n[octto](https://github.com/vtemian/octto)\n\nInteractive browser UI for AI brainstorming with multi-question forms\n\n[opencode-background-agents](https://github.com/kdcokenny/opencode-background-agents)\n\nClaude Code-style background agents with async delegation and context persistence\n\n[opencode-notify](https://github.com/kdcokenny/opencode-notify)\n\nNative OS notifications for OpenCode – know when tasks complete\n\n[opencode-workspace](https://github.com/kdcokenny/opencode-workspace)\n\nBundled multi-agent orchestration harness – 16 components, one install\n\n[opencode-worktree](https://github.com/kdcokenny/opencode-worktree)\n\nZero-friction git worktrees for OpenCode\n\n[opencode-sentry-monitor](https://github.com/stolinski/opencode-sentry-monitor)\n\nTrace and debug your AI agents with Sentry AI Monitoring\n\n[opencode-firecrawl](https://github.com/firecrawl/opencode-firecrawl)\n\nWeb scraping, crawling, and search via the Firecrawl CLI\n\n---\n\n## [Projects](#projects)\n\nName\n\nDescription\n\n[kimaki](https://github.com/remorses/kimaki)\n\nDiscord bot to control OpenCode sessions, built on the SDK\n\n[opencode.nvim](https://github.com/NickvanDyke/opencode.nvim)\n\nNeovim plugin for editor-aware prompts, built on the API\n\n[portal](https://github.com/hosenur/portal)\n\nMobile-first web UI for OpenCode over Tailscale/VPN\n\n[opencode plugin template](https://github.com/zenobi-us/opencode-plugin-template/)\n\nTemplate for building OpenCode plugins\n\n[opencode.nvim](https://github.com/sudo-tee/opencode.nvim)\n\nNeovim frontend for opencode - a terminal-based AI coding agent\n\n[ai-sdk-provider-opencode-sdk](https://github.com/ben-vargas/ai-sdk-provider-opencode-sdk)\n\nVercel AI SDK provider for using OpenCode via @opencode-ai/sdk\n\n[OpenChamber](https://github.com/btriapitsyn/openchamber)\n\nWeb / Desktop App and VS Code Extension for OpenCode\n\n[OpenCode-Obsidian](https://github.com/mtymek/opencode-obsidian)\n\nObsidian plugin that embeds OpenCode in Obsidian’s UI\n\n[OpenWork](https://github.com/different-ai/openwork)\n\nAn open-source alternative to Claude Cowork, powered by OpenCode\n\n[ocx](https://github.com/kdcokenny/ocx)\n\nOpenCode extension manager with portable, isolated profiles.\n\n[CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad)\n\nDesktop, Web, Mobile and Remote Client App for OpenCode\n\n---\n\n## [Agents](#agents)\n\nName\n\nDescription\n\n[Agentic](https://github.com/Cluster444/agentic)\n\nModular AI agents and commands for structured development\n\n[opencode-agents](https://github.com/darrenhinde/opencode-agents)\n\nConfigs, prompts, agents, and plugins for enhanced workflows\n\n[Edit page](https://github.com/anomalyco/opencode/edit/dev/packages/web/src/content/docs/ecosystem.mdx)[Found a bug? Open an issue](https://github.com/anomalyco/opencode/issues/new)[Join our Discord community](https://opencode.ai/discord) Select language EnglishالعربيةBosanskiDanskDeutschEspañolFrançaisItaliano日本語한국어Norsk BokmålPolskiPortuguês (Brasil)РусскийไทยTürkçe简体中文繁體中文 \n\n© [Anomaly](https://anoma.ly)\n\nLast updated: Apr 22, 2026",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://opencode.ai/docs/ecosystem/ (text/html)",
+            "time": {
+              "start": 1776866477125,
+              "end": 1776866477549
+            }
+          },
+          "id": "prt_db57ec201001hy5p5cf7mUmqEJ",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57eb26f001SogK3I96B4bBLW"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-finish",
+          "tokens": {
+            "total": 34589,
+            "input": 34469,
+            "output": 94,
+            "reasoning": 26,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db57ec5ef001W6I3loS2zEQU81",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57eb26f001SogK3I96B4bBLW"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 42243,
+          "input": 42122,
+          "output": 67,
+          "reasoning": 54,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776866477642,
+          "completed": 1776866484286
+        },
+        "finish": "tool-calls",
+        "id": "msg_db57ec64a001RwrAIa8oXj6h8S",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-start",
+          "id": "prt_db57ecbb20011yi8yKg4BflZSw",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ec64a001RwrAIa8oXj6h8S"
+        },
+        {
+          "type": "reasoning",
+          "text": "I found a very relevant plugin: `opencode-scheduler` at https://github.com/different-ai/opencode-scheduler - \"Schedule recurring jobs using launchd (Mac) or systemd (Linux) with cron syntax\". Let me fetch more details about this.",
+          "time": {
+            "start": 1776866479036,
+            "end": 1776866479951
+          },
+          "id": "prt_db57ecbbc001RYkPwoFoZDIOc1",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ec64a001RwrAIa8oXj6h8S"
+        },
+        {
+          "type": "text",
+          "text": "I found a key community plugin. Let me get details on it.\n\n",
+          "time": {
+            "start": 1776866479953,
+            "end": 1776866481137
+          },
+          "id": "prt_db57ecf51001WPIaxinZbLmz2t",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ec64a001RwrAIa8oXj6h8S"
+        },
+        {
+          "type": "tool",
+          "tool": "webfetch",
+          "callID": "call_facf1f55903e41a2b3925ef7",
+          "state": {
+            "status": "completed",
+            "input": {
+              "url": "https://github.com/different-ai/opencode-scheduler",
+              "format": "markdown"
+            },
+            "output": "                     GitHub - different-ai/opencode-scheduler: OpenCode plugin for scheduling recurring jobs using launchd (Mac) or systemd (Linux) · GitHub                                             \n\n[Skip to content](#start-of-content)   \n\n## Navigation Menu\n\nToggle navigation\n\n[](/)\n\n[Sign in](/login?return_to=https%3A%2F%2Fgithub.com%2Fdifferent-ai%2Fopencode-scheduler)\n\nAppearance settings\n\n  \n\n-   Platform\n    \n    -   AI CODE CREATION\n        \n        -   [\n            \n            GitHub CopilotWrite better code with AI\n            \n            ](https://github.com/features/copilot)\n        -   [\n            \n            GitHub SparkBuild and deploy intelligent apps\n            \n            ](https://github.com/features/spark)\n        -   [\n            \n            GitHub ModelsManage and compare prompts\n            \n            ](https://github.com/features/models)\n        -   [\n            \n            MCP RegistryNewIntegrate external tools\n            \n            ](https://github.com/mcp)\n        \n    -   DEVELOPER WORKFLOWS\n        \n        -   [\n            \n            ActionsAutomate any workflow\n            \n            ](https://github.com/features/actions)\n        -   [\n            \n            CodespacesInstant dev environments\n            \n            ](https://github.com/features/codespaces)\n        -   [\n            \n            IssuesPlan and track work\n            \n            ](https://github.com/features/issues)\n        -   [\n            \n            Code ReviewManage code changes\n            \n            ](https://github.com/features/code-review)\n        \n    -   APPLICATION SECURITY\n        \n        -   [\n            \n            GitHub Advanced SecurityFind and fix vulnerabilities\n            \n            ](https://github.com/security/advanced-security)\n        -   [\n            \n            Code securitySecure your code as you build\n            \n            ](https://github.com/security/advanced-security/code-security)\n        -   [\n            \n            Secret protectionStop leaks before they start\n            \n            ](https://github.com/security/advanced-security/secret-protection)\n        \n    -   EXPLORE\n        \n        -   [Why GitHub](https://github.com/why-github)\n        -   [Documentation](https://docs.github.com)\n        -   [Blog](https://github.blog)\n        -   [Changelog](https://github.blog/changelog)\n        -   [Marketplace](https://github.com/marketplace)\n        \n    \n    [View all features](https://github.com/features)\n    \n-   Solutions\n    \n    -   BY COMPANY SIZE\n        \n        -   [Enterprises](https://github.com/enterprise)\n        -   [Small and medium teams](https://github.com/team)\n        -   [Startups](https://github.com/enterprise/startups)\n        -   [Nonprofits](https://github.com/solutions/industry/nonprofits)\n        \n    -   BY USE CASE\n        \n        -   [App Modernization](https://github.com/solutions/use-case/app-modernization)\n        -   [DevSecOps](https://github.com/solutions/use-case/devsecops)\n        -   [DevOps](https://github.com/solutions/use-case/devops)\n        -   [CI/CD](https://github.com/solutions/use-case/ci-cd)\n        -   [View all use cases](https://github.com/solutions/use-case)\n        \n    -   BY INDUSTRY\n        \n        -   [Healthcare](https://github.com/solutions/industry/healthcare)\n        -   [Financial services](https://github.com/solutions/industry/financial-services)\n        -   [Manufacturing](https://github.com/solutions/industry/manufacturing)\n        -   [Government](https://github.com/solutions/industry/government)\n        -   [View all industries](https://github.com/solutions/industry)\n        \n    \n    [View all solutions](https://github.com/solutions)\n    \n-   Resources\n    \n    -   EXPLORE BY TOPIC\n        \n        -   [AI](https://github.com/resources/articles?topic=ai)\n        -   [Software Development](https://github.com/resources/articles?topic=software-development)\n        -   [DevOps](https://github.com/resources/articles?topic=devops)\n        -   [Security](https://github.com/resources/articles?topic=security)\n        -   [View all topics](https://github.com/resources/articles)\n        \n    -   EXPLORE BY TYPE\n        \n        -   [Customer stories](https://github.com/customer-stories)\n        -   [Events & webinars](https://github.com/resources/events)\n        -   [Ebooks & reports](https://github.com/resources/whitepapers)\n        -   [Business insights](https://github.com/solutions/executive-insights)\n        -   [GitHub Skills](https://skills.github.com)\n        \n    -   SUPPORT & SERVICES\n        \n        -   [Documentation](https://docs.github.com)\n        -   [Customer support](https://support.github.com)\n        -   [Community forum](https://github.com/orgs/community/discussions)\n        -   [Trust center](https://github.com/trust-center)\n        -   [Partners](https://github.com/partners)\n        \n    \n    [View all resources](https://github.com/resources)\n    \n-   Open Source\n    \n    -   COMMUNITY\n        \n        -   [\n            \n            GitHub SponsorsFund open source developers\n            \n            ](https://github.com/sponsors)\n        \n    -   PROGRAMS\n        \n        -   [Security Lab](https://securitylab.github.com)\n        -   [Maintainer Community](https://maintainers.github.com)\n        -   [Accelerator](https://github.com/accelerator)\n        -   [GitHub Stars](https://stars.github.com)\n        -   [Archive Program](https://archiveprogram.github.com)\n        \n    -   REPOSITORIES\n        \n        -   [Topics](https://github.com/topics)\n        -   [Trending](https://github.com/trending)\n        -   [Collections](https://github.com/collections)\n        \n    \n-   Enterprise\n    \n    -   ENTERPRISE SOLUTIONS\n        \n        -   [\n            \n            Enterprise platformAI-powered developer platform\n            \n            ](https://github.com/enterprise)\n        \n    -   AVAILABLE ADD-ONS\n        \n        -   [\n            \n            GitHub Advanced SecurityEnterprise-grade security features\n            \n            ](https://github.com/security/advanced-security)\n        -   [\n            \n            Copilot for BusinessEnterprise-grade AI features\n            \n            ](https://github.com/features/copilot/copilot-business)\n        -   [\n            \n            Premium SupportEnterprise-grade 24/7 support\n            \n            ](https://github.com/premium-support)\n        \n    \n-   [Pricing](https://github.com/pricing)\n\nSearch or jump to...\n\n# Search code, repositories, users, issues, pull requests...\n\nSearch\n\nClear\n\n[Search syntax tips](https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax)\n\n# Provide feedback\n\nWe read every piece of feedback, and take your input very seriously.\n\n Include my email address so I can be contacted\n\nCancel Submit feedback\n\n# Saved searches\n\n## Use saved searches to filter your results more quickly\n\nName  \n\nQuery \n\nTo see all available qualifiers, see our [documentation](https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax).\n\nCancel Create saved search\n\n[Sign in](/login?return_to=https%3A%2F%2Fgithub.com%2Fdifferent-ai%2Fopencode-scheduler)\n\n[Sign up](/signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=different-ai%2Fopencode-scheduler)\n\nAppearance settings\n\nResetting focus\n\nYou signed in with another tab or window. Reload to refresh your session. You signed out in another tab or window. Reload to refresh your session. You switched accounts on another tab or window. Reload to refresh your session. Dismiss alert\n\n[different-ai](/different-ai) / **[opencode-scheduler](/different-ai/opencode-scheduler)** Public\n\n-   [Notifications](/login?return_to=%2Fdifferent-ai%2Fopencode-scheduler) You must be signed in to change notification settings\n-   [Fork 16](/login?return_to=%2Fdifferent-ai%2Fopencode-scheduler)\n-   [Star 303](/login?return_to=%2Fdifferent-ai%2Fopencode-scheduler)\n    \n\n-   [Code](/different-ai/opencode-scheduler)\n-   [Issues 8](/different-ai/opencode-scheduler/issues)\n-   [Pull requests 2](/different-ai/opencode-scheduler/pulls)\n-   [Actions](/different-ai/opencode-scheduler/actions)\n-   [Projects](/different-ai/opencode-scheduler/projects)\n-   [Security and quality 0](/different-ai/opencode-scheduler/security)\n-   [Insights](/different-ai/opencode-scheduler/pulse)\n\nAdditional navigation options\n\n-   [Code](/different-ai/opencode-scheduler)\n-   [Issues](/different-ai/opencode-scheduler/issues)\n-   [Pull requests](/different-ai/opencode-scheduler/pulls)\n-   [Actions](/different-ai/opencode-scheduler/actions)\n-   [Projects](/different-ai/opencode-scheduler/projects)\n-   [Security and quality](/different-ai/opencode-scheduler/security)\n-   [Insights](/different-ai/opencode-scheduler/pulse)\n\n [](/different-ai/opencode-scheduler)\n\n# different-ai/opencode-scheduler\n\n main\n\n[Branches](/different-ai/opencode-scheduler/branches)[Tags](/different-ai/opencode-scheduler/tags)\n\n[](/different-ai/opencode-scheduler/branches)[](/different-ai/opencode-scheduler/tags)\n\nGo to file\n\nCode\n\nOpen more actions menu\n\n## Folders and files\n\nName\n\nName\n\nLast commit message\n\nLast commit date\n\n## Latest commit\n\n## History\n\n[28 Commits](/different-ai/opencode-scheduler/commits/main/)\n\n[](/different-ai/opencode-scheduler/commits/main/)28 Commits\n\n[dist](/different-ai/opencode-scheduler/tree/main/dist \"dist\")\n\n[dist](/different-ai/opencode-scheduler/tree/main/dist \"dist\")\n\n[src](/different-ai/opencode-scheduler/tree/main/src \"src\")\n\n[src](/different-ai/opencode-scheduler/tree/main/src \"src\")\n\n[.gitignore](/different-ai/opencode-scheduler/blob/main/.gitignore \".gitignore\")\n\n[.gitignore](/different-ai/opencode-scheduler/blob/main/.gitignore \".gitignore\")\n\n[AGENTS.md](/different-ai/opencode-scheduler/blob/main/AGENTS.md \"AGENTS.md\")\n\n[AGENTS.md](/different-ai/opencode-scheduler/blob/main/AGENTS.md \"AGENTS.md\")\n\n[LICENSE](/different-ai/opencode-scheduler/blob/main/LICENSE \"LICENSE\")\n\n[LICENSE](/different-ai/opencode-scheduler/blob/main/LICENSE \"LICENSE\")\n\n[PRD-resilient-execution.md](/different-ai/opencode-scheduler/blob/main/PRD-resilient-execution.md \"PRD-resilient-execution.md\")\n\n[PRD-resilient-execution.md](/different-ai/opencode-scheduler/blob/main/PRD-resilient-execution.md \"PRD-resilient-execution.md\")\n\n[README.md](/different-ai/opencode-scheduler/blob/main/README.md \"README.md\")\n\n[README.md](/different-ai/opencode-scheduler/blob/main/README.md \"README.md\")\n\n[package-lock.json](/different-ai/opencode-scheduler/blob/main/package-lock.json \"package-lock.json\")\n\n[package-lock.json](/different-ai/opencode-scheduler/blob/main/package-lock.json \"package-lock.json\")\n\n[package.json](/different-ai/opencode-scheduler/blob/main/package.json \"package.json\")\n\n[package.json](/different-ai/opencode-scheduler/blob/main/package.json \"package.json\")\n\n[tsconfig.json](/different-ai/opencode-scheduler/blob/main/tsconfig.json \"tsconfig.json\")\n\n[tsconfig.json](/different-ai/opencode-scheduler/blob/main/tsconfig.json \"tsconfig.json\")\n\nView all files\n\n## Repository files navigation\n\n-   [README](#)\n-   [MIT license](#)\n\n# opencode-scheduler\n\n[](#opencode-scheduler)\n\nRun AI agents on a schedule. Set up recurring tasks that execute autonomously—even when you're away.\n\n```\nSchedule a daily job at 9am to search Facebook Marketplace for posters under $100 and send the top 5 deals to my Telegram\n```\n\nThis is an [OpenCode](https://opencode.ai) plugin that uses your OS's native scheduler (launchd on macOS, systemd on Linux, Task Scheduler on Windows), with cron fallback where native backends are unavailable.\n\nAs of `v1.2.0`, jobs are scoped by `workdir` (so different projects don't collide), and scheduled runs are supervised (no overlap + optional timeout).\n\n## Install\n\n[](#install)\n\nAdd to your `opencode.json`:\n\n{\n  \"plugin\": \\[\"opencode-scheduler\"\\]\n}\n\n## Examples\n\n[](#examples)\n\n**Daily deal hunting:**\n\n```\nSchedule a daily job at 9am to search for standing desks under $300\n```\n\n**Weekly reports:**\n\n```\nSchedule a job every Monday at 8am to summarize my GitHub notifications\n```\n\n**Recurring reminders:**\n\n```\nSchedule a job every 6 hours to check if my website is up and alert me on Slack if it's down\n```\n\n## Commands\n\n[](#commands)\n\nCommand\n\nExample\n\nSchedule a job\n\n`Schedule a daily job at 9am to...`\n\nList jobs\n\n`Show my scheduled jobs`\n\nGet version\n\n`Show scheduler version`\n\nInstall skill template\n\n`Install the scheduled job best practices skill`\n\nGet job\n\n`Show details for standing-desk`\n\nUpdate job\n\n`Update standing-desk to run at 10am`\n\nRun immediately\n\n`Run the standing-desk job now`\n\nView logs\n\n`Show logs for standing-desk`\n\nDelete\n\n`Delete the standing-desk job`\n\nGlobal cleanup (dry run)\n\n`Run scheduler global cleanup`\n\n## How It Works\n\n[](#how-it-works)\n\n1.  You describe what you want scheduled in natural language\n2.  The plugin writes a job file (scoped by `workdir`) and installs a timer in your OS scheduler\n3.  At the scheduled time, the OS scheduler calls a small supervisor script\n4.  The supervisor runs the job, appends logs, and updates job metadata\n\nYou can also trigger a job immediately via `run_job`—it runs fire-and-forget and appends to the same log file.\n\nJobs run from the working directory where you created them, picking up your `opencode.json` and MCP configurations.\n\n### Reliability Guarantees (Scheduled Runs)\n\n[](#reliability-guarantees-scheduled-runs)\n\n-   **No overlap**: if the previous run is still active, the next scheduled tick is skipped.\n-   **Non-interactive by default**: scheduled runs force `OPENCODE_PERMISSION` to deny \"question\" prompts, so jobs don't hang waiting for approvals.\n-   **Optional timeout**: set `timeoutSeconds` to hard-stop long runs (SIGTERM, then SIGKILL).\n\n### Platform Support\n\n[](#platform-support)\n\nPlatform\n\nScheduler backend\n\nNotes\n\nmacOS\n\n`launchd`\n\nFull support (supervised scheduled runs)\n\nLinux (systemd available)\n\n`systemd --user`\n\nFull support (supervised scheduled runs)\n\nLinux / POSIX (no systemd)\n\n`cron` (`crontab`)\n\nFallback backend (no missed-run catch-up)\n\nWindows\n\n`schtasks` (Task Scheduler)\n\nSupported with cron subset mapping (see limits below)\n\nWindows Task Scheduler limits:\n\n-   Cron expressions that use unsupported combinations (for example, month + weekday constraints, or month-only without explicit day-of-month) return a clear error with guidance.\n-   Complex cron schedules may be expanded into multiple Windows tasks under `\\\\OpenCode\\\\opencode-job-...`.\n-   Windows scheduled runs currently do **not** use the supervisor pipeline used on macOS/Linux, so no-overlap and timeout enforcement are not guaranteed by the OS integration itself.\n\n---\n\n## Reference\n\n[](#reference)\n\n### Cron Syntax\n\n[](#cron-syntax)\n\nJobs use standard 5-field cron expressions:\n\n```\n┌───────────── minute (0-59)\n│ ┌───────────── hour (0-23)\n│ │ ┌───────────── day of month (1-31)\n│ │ │ ┌───────────── month (1-12)\n│ │ │ │ ┌───────────── day of week (0-6, Sunday=0)\n│ │ │ │ │\n* * * * *\n```\n\nExpression\n\nMeaning\n\n`0 9 * * *`\n\nDaily at 9:00 AM\n\n`0 */6 * * *`\n\nEvery 6 hours\n\n`30 8 * * 1`\n\nMondays at 8:30 AM\n\n`0 9,17 * * *`\n\nAt 9 AM and 5 PM daily\n\n### Tools\n\n[](#tools)\n\nTool\n\nDescription\n\n`schedule_job`\n\nCreate a new scheduled job\n\n`list_jobs`\n\nList all scheduled jobs\n\n`get_version`\n\nShow scheduler and opencode versions\n\n`get_skill`\n\nGet built-in skill templates (best practices)\n\n`install_skill`\n\nInstall a built-in skill into your repo\n\n`get_job`\n\nFetch job details and metadata\n\n`update_job`\n\nUpdate an existing job\n\n`delete_job`\n\nRemove a scheduled job\n\n`cleanup_global`\n\nRemove scheduler artifacts across all scopes (dry-run by default)\n\n`run_job`\n\nExecute a job immediately (fire-and-forget)\n\n`job_logs`\n\nView the latest logs from a job\n\n`schedule_job` and `update_job` accept an optional `timeoutSeconds` (integer seconds). Use `0` (or omit) to disable.\n\nTools accept an optional `format: \"json\"` argument to return structured output with `success`, `output`, `shouldContinue`, and `data`.\n\n### Global Cleanup\n\n[](#global-cleanup)\n\nUse `cleanup_global` to clean scheduler artifacts across all scopes. It always starts in dry-run mode unless you pass `confirm: true`.\n\n-   Dry run (safe default):\n\n{ \"confirm\": false }\n\n-   Execute global cleanup of job definitions + lock files + scheduler units:\n\n{ \"confirm\": true }\n\n-   Also delete logs and run history:\n\n{ \"confirm\": true, \"includeHistory\": true }\n\nThe tool reports exactly how many artifacts were removed, grouped by location (jobs, locks, logs, runs, launchd/systemd units).\n\n### Storage\n\n[](#storage)\n\nWhat\n\nWhere\n\nJob configs (scoped)\n\n`~/.config/opencode/scheduler/scopes/<scopeId>/jobs/*.json`\n\nRun records (scoped)\n\n`~/.config/opencode/scheduler/scopes/<scopeId>/runs/*.jsonl`\n\nLocks (scoped)\n\n`~/.config/opencode/scheduler/scopes/<scopeId>/locks/*.json`\n\nLogs (scoped)\n\n`~/.config/opencode/logs/scheduler/<scopeId>/*.log`\n\nSupervisor script\n\n`~/.config/opencode/scheduler/supervisor.pl`\n\nlaunchd plists (Mac)\n\n`~/Library/LaunchAgents/com.opencode.job.<scopeId>.*.plist`\n\nsystemd units (Linux)\n\n`~/.config/systemd/user/opencode-job-<scopeId>-*.{service,timer}`\n\nTask Scheduler entries (Windows)\n\n`\\\\OpenCode\\\\opencode-job-<scopeId>-*`\n\nLegacy note: older versions stored jobs in `~/.config/opencode/jobs/*.json` and used unscoped unit names. `delete_job` removes both scoped and legacy artifacts.\n\n### Working Directory\n\n[](#working-directory)\n\nJobs run from a specific directory to pick up MCP configs:\n\n```\nSchedule a daily job at 9am from /path/to/project to run my-task\n```\n\nBy default, jobs use the directory where you created them.\n\n### Scopes\n\n[](#scopes)\n\nScopes are derived from the job's `workdir` (normalized absolute path). This isolates job storage, logs, and OS scheduler unit names per project.\n\n-   `list_jobs` defaults to the **current scope** (your current working directory).\n-   Use `allScopes: true` to list jobs across all scopes.\n-   Use `includeLegacy: true` to include pre-`v1.2.0` jobs stored in `~/.config/opencode/jobs`.\n\n### Attach URL (optional)\n\n[](#attach-url-optional)\n\nIf you have an OpenCode backend running via `opencode serve` or `opencode web`, you can set `attachUrl` on a job so runs use that backend:\n\n```\nUpdate the standing-desk job to use attachUrl http://localhost:4096\n```\n\n## Project Philosophy\n\n[](#project-philosophy)\n\n-   This plugin is intentionally a thin wrapper: it schedules `opencode run` via launchd/systemd/schtasks, with cron fallback when native backends are unavailable.\n-   Logs are the source of truth for scheduled runs: `~/.config/opencode/logs/*.log`.\n-   Resiliency/reporting roadmap (not implemented): `PRD-resilient-execution.md`.\n\n### Built-in Skill Templates\n\n[](#built-in-skill-templates)\n\nTo install the built-in skill into your project (no copy/paste), open OpenCode in your repo and run:\n\n```\nInstall the scheduled job best practices skill\n```\n\nThis calls the plugin’s `install_skill` tool and writes `.opencode/skill/scheduled-job-best-practices/SKILL.md`.\n\n(If you prefer, you can also say: `Get skill from opencode-scheduler and add it to my skills`.)\n\nThen add `@scheduled-job-best-practices` at the top of scheduled job prompts.\n\n(Manual option: use `get_skill` to fetch `scheduled-job-best-practices` and copy it into `.opencode/skill/scheduled-job-best-practices/SKILL.md`.)\n\n## Troubleshooting\n\n[](#troubleshooting)\n\n**Jobs not running?**\n\n1.  Check if installed:\n    \n    -   Mac: `launchctl list | grep opencode`\n    -   Linux: `systemctl --user list-timers | grep opencode`\n    -   Windows: `schtasks /Query /TN \"\\\\OpenCode\\\\opencode-job-*\"`\n2.  Check logs: `Show logs for my-job`\n    \n3.  Verify the working directory has the right `opencode.json` with MCP configs\n    \n\n**MCP tools not available?**\n\nMake sure the job's working directory contains an `opencode.json` with your MCP server configurations.\n\n## License\n\n[](#license)\n\nMIT\n\n## About\n\nOpenCode plugin for scheduling recurring jobs using launchd (Mac) or systemd (Linux)\n\n### Resources\n\n[Readme](#readme-ov-file)\n\n### License\n\n[MIT license](#MIT-1-ov-file)\n\n### Uh oh!\n\nThere was an error while loading. Please reload this page.\n\n[Activity](/different-ai/opencode-scheduler/activity)\n\n[Custom properties](/different-ai/opencode-scheduler/custom-properties)\n\n### Stars\n\n[**303** stars](/different-ai/opencode-scheduler/stargazers)\n\n### Watchers\n\n[**3** watching](/different-ai/opencode-scheduler/watchers)\n\n### Forks\n\n[**16** forks](/different-ai/opencode-scheduler/forks)\n\n[Report repository](/contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Fdifferent-ai%2Fopencode-scheduler&report=different-ai+%28user%29)\n\n## [Releases](/different-ai/opencode-scheduler/releases)\n\n[6 tags](/different-ai/opencode-scheduler/tags)\n\n## [Packages 0](/orgs/different-ai/packages?repo_name=opencode-scheduler)\n\n### Uh oh!\n\nThere was an error while loading. Please reload this page.\n\n## [Contributors 1](/different-ai/opencode-scheduler/graphs/contributors)\n\n-    [![@benjaminshafii](https://avatars.githubusercontent.com/u/11430621?s=64&v=4)](https://github.com/benjaminshafii)[**benjaminshafii** ben](https://github.com/benjaminshafii)\n\n## Languages\n\n-   [TypeScript 100.0%](/different-ai/opencode-scheduler/search?l=typescript)\n\n## Footer\n\n[](https://github.com)© 2026 GitHub, Inc.\n\n### Footer navigation\n\n-   [Terms](https://docs.github.com/site-policy/github-terms/github-terms-of-service)\n-   [Privacy](https://docs.github.com/site-policy/privacy-policies/github-privacy-statement)\n-   [Security](https://github.com/security)\n-   [Status](https://www.githubstatus.com/)\n-   [Community](https://github.community/)\n-   [Docs](https://docs.github.com/)\n-   [Contact](https://support.github.com?tags=dotcom-footer)\n-   Manage cookies\n-   Do not share my personal information\n\nYou can’t perform that action at this time.",
+            "metadata": {
+              "truncated": false
+            },
+            "title": "https://github.com/different-ai/opencode-scheduler (text/html; charset=utf-8)",
+            "time": {
+              "start": 1776866481109,
+              "end": 1776866484182
+            }
+          },
+          "id": "prt_db57ed0fa0018hFhWHIQrpY0zP",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ec64a001RwrAIa8oXj6h8S"
+        },
+        {
+          "reason": "tool-calls",
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-finish",
+          "tokens": {
+            "total": 42243,
+            "input": 42122,
+            "output": 67,
+            "reasoning": 54,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db57edfdb001gam1QgXxkA5ZjN",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ec64a001RwrAIa8oXj6h8S"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db57e60d7001WJ3OXN15MaIC2B",
+        "role": "assistant",
+        "mode": "general",
+        "agent": "general",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 49059,
+          "input": 47934,
+          "output": 1106,
+          "reasoning": 19,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776866484292,
+          "completed": 1776866506159
+        },
+        "finish": "stop",
+        "id": "msg_db57ee044001FmF30n07F1eQMx",
+        "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM"
+      },
+      "parts": [
+        {
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-start",
+          "id": "prt_db57ee57b001UrihQhIcQME5jZ",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ee044001FmF30n07F1eQMx"
+        },
+        {
+          "type": "reasoning",
+          "text": "Now I have all the information needed to provide a comprehensive answer. Let me summarize the findings.\n",
+          "time": {
+            "start": 1776866485635,
+            "end": 1776866486013
+          },
+          "id": "prt_db57ee583001pQM3sAIzGwtsvp",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ee044001FmF30n07F1eQMx"
+        },
+        {
+          "type": "text",
+          "text": "Here are the findings:\n\n---\n\n## OpenCode Scheduling/Cron Capabilities — Research Results\n\n### 1. Built-in Scheduling: **None**\n\nOpenCode has **no built-in cron/schedule mechanism**. The plugin system only supports **event-driven hooks**, not time-based triggers.\n\n### 2. Available Events/Hooks\n\nFrom the plugin docs and codebase, OpenCode supports these event types:\n\n| Category | Events |\n|----------|--------|\n| **Session** | `session.created`, `session.deleted`, `session.compacted`, `session.status`, `session.idle`, `session.updated`, `session.diff`, `session.error` |\n| **Message** | `message.updated`, `message.part.updated`, `message.updated`, `message.part.removed`, `message.removed` |\n| **Tool** | `tool.execute.before`, `tool.execute.after` |\n| **File** | `file.edited`, `file.watcher.updated` |\n| **TUI** | `tui.prompt.append`, `tui.command.execute`, `tui.toast.show` |\n| **Other** | `command.executed`, `installation.updated`, `lsp.*`, `permission.*`, `server.connected`, `shell.env`, `todo.updated` |\n\n**No time-based events exist.** Plugins can only react to these lifecycle events, not trigger on a schedule.\n\n### 3. Current Plugin Hook Pattern (`.opencode/plugins/trae-hooks.ts`)\n\nThe plugin maps OpenCode events to shell script invocations:\n- `session.created` → `SessionStart`\n- `session.deleted` → `SessionEnd`\n- `server.instance.disposed` → `SessionEnd` (shutdown fallback)\n\nHooks are invoked via `Bun.spawn()` / `Bun.spawnSync()` calling `scripts/*.mjs` with the hook type as argument.\n\n### 4. The Solution: `opencode-scheduler` (Community Plugin)\n\nA **first-party community plugin** exists specifically for this:\n\n**Repository:** <https://github.com/different-ai/opencode-scheduler> (303 stars)\n\n**Install:**\n```jsonc\n// opencode.json\n{\n  \"plugin\": [\"opencode-scheduler\"]\n}\n```\n\n**How it works:**\n\n| Platform | Backend |\n|----------|---------|\n| macOS | `launchd` (full support, supervised runs) |\n| Linux (systemd) | `systemd --user` timers (full support) |\n| Linux/POSIX (no systemd) | `crontab` fallback |\n| Windows | `schtasks` (Task Scheduler, limited) |\n\n**Features:**\n- Natural language scheduling (\"Schedule a daily job at 9am to...\")\n- Tools: `schedule_job`, `list_jobs`, `run_job`, `job_logs`, `update_job`, `delete_job`, `get_job`\n- **No overlap** enforcement (skips if previous run still active)\n- **Non-interactive by default** (denies question prompts automatically)\n- Optional **timeout** (`timeoutSeconds`)\n- Jobs scoped by `workdir` — different projects don't collide\n- Storage at `~/.config/opencode/scheduler/scopes/<scopeId>/jobs/*.json`\n- Standard 5-field cron syntax\n\n### 5. Possible Approaches (Ranked)\n\n**Approach A — Use `opencode-scheduler` plugin (Recommended)**\n- Add `\"opencode-scheduler\"` to `opencode.json` plugins\n- Let OpenCode handle OS-level scheduling natively\n- Supports cron expressions, logging, overlap protection, timeouts\n\n**Approach B — External cron + `opencode run` CLI**\n```bash\n# System crontab\n0 9 * * * cd /path/to/project && opencode run \"Check for marketplace deals\" --dangerously-skip-permissions\n```\n- Simple, works everywhere\n- No overlap protection or logging management out of the box\n\n**Approach C — Custom plugin with Bun.setInterval (Not Recommended)**\n- A plugin could theoretically start a `Bun.setInterval()` on `session.created`\n- **Problems**: Only works while OpenCode is running; process dies on shutdown; no persistence\n\n**Approach D — SDK + external daemon**\n- Use `@opencode-ai/sdk` to `createOpencode()` + `client.session.prompt()` from a cron-triggered script\n- Most programmatic but requires writing your own scheduler wrapper\n\n---\n\n### Concrete Recommendation\n\nFor this project (trae-plugin-cc), the **simplest integration** would be:\n\n1. Add `opencode-scheduler` to the project's `opencode.json`\n2. The existing `trae-run`/`trae-review` OpenCode tools can be used **inside** scheduled jobs (they're available to the LLM as tools in any session)\n3. Alternatively, use system cron to call `opencode run \"...\" --attach http://localhost:4096` against a long-running `opencode serve` instance\n\nThere is no need to build a custom scheduling mechanism into this plugin — the ecosystem already has a well-maintained solution.",
+          "time": {
+            "start": 1776866486016,
+            "end": 1776866506021
+          },
+          "id": "prt_db57ee700001e9mF9GXpPBom7Y",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ee044001FmF30n07F1eQMx"
+        },
+        {
+          "reason": "stop",
+          "snapshot": "baac396b41d465ec8e1e48df6bdfaf4bb102cf1a",
+          "type": "step-finish",
+          "tokens": {
+            "total": 49059,
+            "input": 47934,
+            "output": 1106,
+            "reasoning": 19,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db57f352d001e2CSvCVq4ey9tV",
+          "sessionID": "ses_24a819f3affeUFp9xPgIgkB8nM",
+          "messageID": "msg_db57ee044001FmF30n07F1eQMx"
+        }
+      ]
+    }
+  ]
+}
