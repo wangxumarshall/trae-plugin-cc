@@ -1,0 +1,92 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4f2536ae2603",
+  "session_id": "ses_24a9100f2ffeKwLd6I77DOnoqw",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-23T01:11:41.720887Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".opencode/opencode.json",
+    ".opencode/plans/refactor-findings.md",
+    ".opencode/plans/refactor-progress.md",
+    "src/commands/acp.ts",
+    "src/commands/hooks.ts",
+    "src/commands/jobs.ts",
+    "src/commands/rescue.ts",
+    "src/commands/review.ts",
+    "src/commands/run.ts",
+    "src/commands/sessions.ts",
+    "src/commands/setup.ts",
+    "src/formatters/table.ts",
+    "src/logger.ts",
+    "src/types/index.ts",
+    "src/utils.ts",
+    "src/utils/acp-client.ts",
+    "src/utils/acp-server-manager.ts",
+    "src/utils/args.ts",
+    "src/utils/auth-bridge.ts",
+    "src/utils/branch-detection.ts",
+    "src/utils/context-bridge.ts",
+    "src/utils/env.ts",
+    "src/utils/session-reader.ts",
+    "src/utils/trae-executor.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "Qwen3.6-Plus",
+  "turn_id": "ab57f6302cc6",
+  "checkpoint_transcript_start": 9,
+  "transcript_lines_at_start": 9,
+  "token_usage": {
+    "input_tokens": 11352124,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 44289,
+    "api_call_count": 95
+  },
+  "session_metrics": {
+    "turn_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-23T01:11:41.703488Z",
+    "agent_lines": 1573,
+    "agent_removed": 916,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1573,
+    "total_lines_changed": 2489,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1563,
+      "agent_lines_removed": 912
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1563,
+      "agent_lines_removed": 912
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1563,
+      "agent_lines_removed": 912
+    }
+  ]
+}

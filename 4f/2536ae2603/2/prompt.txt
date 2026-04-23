@@ -1,0 +1,72 @@
+Execute the task by running the trae-plugin-cc CLI:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" run "1+2"
+```
+
+If the user provides no arguments, show usage:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" run
+```
+
+Usage examples:
+- `task "refactor the user module"`
+- `task "fix the login bug" --yolo`
+- `task "generate project docs" --background`
+- `task "analyze the codebase" --json`
+- `task "continue" --resume`
+- `task "continue" --resume 0d3cbdc3-e365-468e-982c-fb3d5849f5cc`
+- `task "experimental changes" --worktree`
+- `task "run script" --allowed-tool Bash --allowed-tool Edit`
+- `task "continue optimization" --inject-context abc123`
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp strt
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
+
+---
+
+Manage ACP protocol server by running:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/index.js" acp start
+```
+
+Actions:
+- `start`: Start the ACP Server (trae-cli acp serve)
+- `stop`: Stop the ACP Server
+- `status`: Check server status
+- `agents`: Discover available agents
+- `run "task"`: Execute a task via ACP
+- `stream "task"`: Stream a task execution (real-time output)
+
+Options for `start`:
+- `--yolo`: Skip tool permission confirmations
+- `--allowed-tool <name>`: Allow specific tools
+- `--disabled-tool <name>`: Disable specific tools
+
+Example: `acp start`, `acp status`, `acp agents`, `acp run "analyze code quality"`
+
+---
+
+解决所有问题

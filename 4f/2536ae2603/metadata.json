@@ -3,8 +3,11 @@
   "checkpoint_id": "4f2536ae2603",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 2,
+  "checkpoints_count": 6,
   "files_touched": [
+    ".opencode/opencode.json",
+    ".opencode/plans/refactor-findings.md",
+    ".opencode/plans/refactor-progress.md",
     "src/commands/acp.ts",
     "src/commands/hooks.ts",
     "src/commands/jobs.ts",
@@ -13,9 +16,13 @@
     "src/commands/run.ts",
     "src/commands/sessions.ts",
     "src/commands/setup.ts",
+    "src/formatters/table.ts",
+    "src/logger.ts",
+    "src/types/index.ts",
     "src/utils.ts",
     "src/utils/acp-client.ts",
     "src/utils/acp-server-manager.ts",
+    "src/utils/args.ts",
     "src/utils/auth-bridge.ts",
     "src/utils/branch-detection.ts",
     "src/utils/context-bridge.ts",
@@ -35,13 +42,19 @@
       "transcript": "/4f/2536ae2603/1/full.jsonl",
       "content_hash": "/4f/2536ae2603/1/content_hash.txt",
       "prompt": "/4f/2536ae2603/1/prompt.txt"
+    },
+    {
+      "metadata": "/4f/2536ae2603/2/metadata.json",
+      "transcript": "/4f/2536ae2603/2/full.jsonl",
+      "content_hash": "/4f/2536ae2603/2/content_hash.txt",
+      "prompt": "/4f/2536ae2603/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 250670,
+    "input_tokens": 11602794,
     "cache_creation_tokens": 0,
     "cache_read_tokens": 0,
-    "output_tokens": 2245,
-    "api_call_count": 12
+    "output_tokens": 46534,
+    "api_call_count": 107
   }
 }
