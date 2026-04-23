@@ -3,7 +3,7 @@
   "checkpoint_id": "fb41028f3781",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": [
     ".opencode/plugins/trae-hooks.ts",
     ".opencode/tools/trae-acp.ts",
@@ -28,13 +28,19 @@
       "transcript": "/fb/41028f3781/1/full.jsonl",
       "content_hash": "/fb/41028f3781/1/content_hash.txt",
       "prompt": "/fb/41028f3781/1/prompt.txt"
+    },
+    {
+      "metadata": "/fb/41028f3781/2/metadata.json",
+      "transcript": "/fb/41028f3781/2/full.jsonl",
+      "content_hash": "/fb/41028f3781/2/content_hash.txt",
+      "prompt": "/fb/41028f3781/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 564177,
+    "input_tokens": 581743,
     "cache_creation_tokens": 0,
     "cache_read_tokens": 0,
-    "output_tokens": 6655,
-    "api_call_count": 22
+    "output_tokens": 6669,
+    "api_call_count": 23
   }
 }

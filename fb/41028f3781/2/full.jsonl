@@ -1,0 +1,130 @@
+{
+  "info": {
+    "id": "ses_247fb453effeZY6ZdtwORwmQlj",
+    "slug": "brave-pixel",
+    "projectID": "5fcf99c1da674437167063389620ba8e552c5910",
+    "directory": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+    "title": "New session - 2026-04-23T01:46:50.945Z",
+    "version": "1.14.20",
+    "summary": {
+      "additions": 0,
+      "deletions": 0,
+      "files": 0
+    },
+    "time": {
+      "created": 1776908810945,
+      "updated": 1776908811139
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "role": "user",
+        "time": {
+          "created": 1776908810960
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "volcengine-key1",
+          "modelID": "Qwen3.6-Plus"
+        },
+        "summary": {
+          "diffs": []
+        },
+        "id": "msg_db804bac7001XFxld4RaHqBoT5",
+        "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj"
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "hi",
+          "id": "prt_db804bac70029Pam9DPLHK8Zof",
+          "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj",
+          "messageID": "msg_db804bac7001XFxld4RaHqBoT5"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_db804bac7001XFxld4RaHqBoT5",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc",
+          "root": "/Users/ubuntu/1-project/idea0015-trae-plugin-cc"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 17601,
+          "input": 17566,
+          "output": 14,
+          "reasoning": 21,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "Qwen3.6-Plus",
+        "providerID": "volcengine-key1",
+        "time": {
+          "created": 1776908810971,
+          "completed": 1776908812978
+        },
+        "finish": "stop",
+        "id": "msg_db804badb001jaz1122ea9VbwD",
+        "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj"
+      },
+      "parts": [
+        {
+          "snapshot": "3060f0f3d218f8607c98dddee1313325207ee80f",
+          "type": "step-start",
+          "id": "prt_db804c01a0012JW7WfFEu1kjKD",
+          "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj",
+          "messageID": "msg_db804badb001jaz1122ea9VbwD"
+        },
+        {
+          "type": "reasoning",
+          "text": "The user said \"hi\" - this is a greeting. I should respond briefly and offer to help.",
+          "time": {
+            "start": 1776908812315,
+            "end": 1776908812739
+          },
+          "id": "prt_db804c01b001BDqcuiHMpxwZqu",
+          "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj",
+          "messageID": "msg_db804badb001jaz1122ea9VbwD"
+        },
+        {
+          "type": "text",
+          "text": "Hi! How can I help you today?",
+          "time": {
+            "start": 1776908812741,
+            "end": 1776908812889
+          },
+          "id": "prt_db804c1c5001ACD4A50emwHRYU",
+          "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj",
+          "messageID": "msg_db804badb001jaz1122ea9VbwD"
+        },
+        {
+          "reason": "stop",
+          "snapshot": "3060f0f3d218f8607c98dddee1313325207ee80f",
+          "type": "step-finish",
+          "tokens": {
+            "total": 17601,
+            "input": 17566,
+            "output": 14,
+            "reasoning": 21,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_db804c25d001Hh044iJsQ0td46",
+          "sessionID": "ses_247fb453effeZY6ZdtwORwmQlj",
+          "messageID": "msg_db804badb001jaz1122ea9VbwD"
+        }
+      ]
+    }
+  ]
+}
