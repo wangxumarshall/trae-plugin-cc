@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "fb41028f3781",
+  "session_id": "ses_247f8d4d6ffeqDOgwxDq4geiyY",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-23T01:54:45.629489Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".opencode/plugins/trae-hooks.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "Qwen3.6-Plus",
+  "turn_id": "3f48e98afa7f",
+  "token_usage": {
+    "input_tokens": 30069,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 2323,
+    "api_call_count": 3
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-23T01:54:45.626245Z",
+    "agent_lines": 7,
+    "agent_removed": 4,
+    "human_added": 7,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 16,
+    "total_lines_changed": 27,
+    "agent_percentage": 40.74074074074074,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 8,
+      "user_lines_removed": 2,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".opencode/plugins/trae-hooks.ts": 8
+      },
+      "user_removed_per_file": {
+        ".opencode/plugins/trae-hooks.ts": 2
+      }
+    }
+  ]
+}
