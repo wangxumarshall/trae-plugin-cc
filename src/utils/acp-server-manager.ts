@@ -2,16 +2,14 @@ import { spawn, ChildProcess } from 'child_process';
 import { AcpClient } from './acp-client';
 import { buildSpawnEnv } from './env';
 
-interface StartupEvent {
-  at: string;
-  event: string;
-  detail?: string;
-}
-
 interface StartOptions {
   yolo?: boolean;
   allowedTools?: string[];
   disabledTools?: string[];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export class AcpServerManager {
@@ -23,101 +21,57 @@ export class AcpServerManager {
       return { client: this.client! };
     }
 
-    return new Promise((resolve, reject) => {
-      const args = this.buildArgs(options);
-      const startupEvents: StartupEvent[] = [];
-      const outputSnippets: string[] = [];
-      let started = false;
-      let settled = false;
+    const args = this.buildArgs(options);
+    const env = buildSpawnEnv();
+    let client: AcpClient | null = null;
 
-      const recordEvent = (event: string, detail?: string): void => {
-        startupEvents.push({
-          at: new Date().toISOString(),
-          event,
-          detail,
-        });
-      };
+    const child = spawn('trae-cli', args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env,
+    });
 
-      const rememberOutput = (source: 'stdout' | 'stderr', text: string): void => {
-        const normalized = text.replace(/\s+/g, ' ').trim();
-        if (!normalized) return;
-        outputSnippets.push(`[${source}] ${normalized}`);
-        if (outputSnippets.length > 8) outputSnippets.shift();
-      };
+    client = new AcpClient(child.stdin!, child.stdout!);
 
-      const buildDiagnostic = (): string => {
-        const trace = startupEvents
-          .map((item, idx) => `${idx + 1}. ${item.at} ${item.event}${item.detail ? ` | ${item.detail}` : ''}`)
-          .join('\n');
-        const recentOutput = outputSnippets.length > 0
-          ? outputSnippets.map((line, idx) => `${idx + 1}. ${line}`).join('\n')
-          : 'none';
-        return `\n[ACP] startup diagnostics\ntrace:\n${trace || 'none'}\nrecent_output:\n${recentOutput}`;
-      };
+    // Buffer stderr for diagnostics without interfering with JSON-RPC on stdout
+    let stderrBuffer = '';
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderrBuffer += chunk.toString();
+    });
 
-      const fail = (message: string): void => {
-        if (settled) return;
-        settled = true;
-        reject(new Error(`${message}${buildDiagnostic()}`));
-      };
-
-      const succeed = (): void => {
-        if (settled) return;
-        settled = true;
-        const client = new AcpClient(child.stdin!, child.stdout!);
+    // Wait for the ACP server's stdio handler to be ready by sending
+    // initialize() and retrying on failure (the server may take a moment
+    // to fully wire up its message handler after process creation).
+    const MAX_INIT_RETRIES = 5;
+    let initError: string | undefined;
+    for (let attempt = 0; attempt <= MAX_INIT_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          await sleep(500 * attempt);
+        }
+        await client.initialize({ name: 'trae-plugin-cc', version: '1.0.0' });
+        // Successfully initialized — the server is ready.
         this.process = child;
         this.client = client;
-        recordEvent('stdio:ready');
-        resolve({ client });
-      };
-
-      const env = buildSpawnEnv();
-
-      recordEvent('spawn:start', `cmd=trae-cli ${args.join(' ')}`);
-
-      const child = spawn('trae-cli', args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env,
-      });
-
-      recordEvent('spawn:created', `pid=${child.pid || 'unknown'}`);
-
-      child.stdout?.on('data', (chunk: Buffer) => {
-        rememberOutput('stdout', chunk.toString());
-      });
-
-      child.stderr?.on('data', (chunk: Buffer) => {
-        rememberOutput('stderr', chunk.toString());
-      });
-
-      child.on('error', (err) => {
-        recordEvent('process:error', err.message);
-        fail(`ACP server spawn failed: ${err.message}`);
-      });
-
-      child.on('close', (code, signal) => {
-        recordEvent('process:close', `code=${code ?? 'null'}, signal=${signal ?? 'null'}`);
-        this.process = null;
-        if (!started) {
-          fail(`ACP server exited before ready (code=${code ?? 'null'}, signal=${signal ?? 'null'})`);
+        return { client };
+      } catch (err: unknown) {
+        initError = err instanceof Error ? err.message : String(err);
+        if (child.exitCode !== null) {
+          // Process exited — won't recover.
+          break;
         }
-      });
+      }
+    }
 
-      setTimeout(() => {
-        if (!started && !settled) {
-          const alive = child.exitCode === null;
-          recordEvent('startup:timeout', `alive=${alive}, exitCode=${child.exitCode ?? 'null'}`);
-
-          if (alive) {
-            started = true;
-            succeed();
-            return;
-          }
-
-          fail('ACP server startup timeout (15s)');
-        }
-      }, 10000);
-    });
+    // All init attempts failed.
+    child.stdin?.end();
+    child.kill('SIGTERM');
+    const diagnostics: string[] = [];
+    if (stderrBuffer.trim()) {
+      diagnostics.push(`stderr: ${stderrBuffer.trim().split('\n').slice(0, 3).join(' | ')}`);
+    }
+    throw new Error(
+      `ACP server failed to initialize after retries.${initError ? ` Last error: ${initError}` : ''}${diagnostics.length ? '\n' + diagnostics.join('\n') : ''}`,
+    );
   }
 
   private buildArgs(options?: StartOptions): string[] {

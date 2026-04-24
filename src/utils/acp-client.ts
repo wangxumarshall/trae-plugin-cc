@@ -39,11 +39,13 @@ export class AcpClient {
     });
   }
 
+  private initResultCache: AcpInitializeResult | null = null;
+
   async initialize(
     clientInfo = { name: 'trae-plugin-cc', version: '1.0.0' },
   ): Promise<AcpInitializeResult> {
-    if (this.initialized) {
-      throw new Error('Already initialized');
+    if (this.initialized && this.initResultCache) {
+      return this.initResultCache;
     }
 
     const result = await this.request<AcpInitializeResult>('initialize', {
@@ -53,6 +55,7 @@ export class AcpClient {
     });
 
     this.initialized = true;
+    this.initResultCache = result;
     return result;
   }
 

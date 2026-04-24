@@ -103,8 +103,8 @@ async function listAgents(): Promise<void> {
   }
 
   try {
+    // start() already called initialize() — initialize() is idempotent.
     const initResult = await client.initialize({ name: 'trae-plugin-cc', version: '1.0.0' });
-
     console.log('\nAgent 信息\n');
     if (initResult.agentInfo) {
       console.log(`  名称: ${initResult.agentInfo.name}`);
