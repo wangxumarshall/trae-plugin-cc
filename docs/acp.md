@@ -2,7 +2,7 @@
 
 ## 概述
 
-ACP 是 **trae-cli 专有的 JSON-RPC 2.0 协议**，基于 STDIO（标准输入/输出）传输。它不是行业标准协议，而是 字节 Trae Agent 的自定义通信机制。
+ACP采用 **JSON-RPC 2.0 协议**，基于 STDIO（标准输入/输出）传输。
 
 **核心用途**：允许外部进程（如本插件）通过子进程方式与 trae-cli 进行双向通信，实现 Agent-to-Agent 协作。
 
